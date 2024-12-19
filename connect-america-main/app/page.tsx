@@ -1,9 +1,8 @@
 import { redirect } from 'next/navigation';
-import Header from './components/Header';
 
 export default function Home() {
-  <>
-  <Header />
-  redirect('/chat');
-  </>
+  redirect('/chat');  // This should be outside of JSX
+  
+  // This return is technically unreachable but Next.js expects it
+  return null;
 }
