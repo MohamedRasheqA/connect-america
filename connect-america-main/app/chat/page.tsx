@@ -1,8 +1,9 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { FileText } from 'lucide-react';
+import { FileText, Plus, ChevronDown } from 'lucide-react';
 
+// Define the structure for chat messages
 interface Message {
   role: 'user' | 'assistant';
   content: string;
@@ -10,22 +11,76 @@ interface Message {
   isExpanded?: boolean;
 }
 
+// Define the structure for FAQ questions
 interface Question {
   question_text: string;
 }
 
+// Define the structure for input options in the dropdown
+interface InputOption {
+  id: string;
+  label: string;
+  description: string;
+}
+
 export default function ChatPage() {
+  // State management for chat functionality
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [textareaHeight, setTextareaHeight] = useState('60px');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [selectedOption, setSelectedOption] = useState<InputOption>({
+    id: 'default',
+    label: 'Default',
+    description: 'Standard chat input'
+  });
+  
+  // References for DOM elements
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  // State for FAQ questions
   const [questions, setQuestions] = useState<Question[]>([]);
   const [questionsLoading, setQuestionsLoading] = useState(true);
+
+  // Available input options for the dropdown
+  const inputOptions: InputOption[] = [
+    {
+      id: 'default',
+      label: 'Default',
+      description: 'Standard chat input'
+    },
+    {
+      id: 'advice',
+      label: 'Advice',
+      description: 'Get advice on specific topics'
+    }
+  ];
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleOptionSelect = (option: InputOption) => {
+    setSelectedOption(option);
+    setIsDropdownOpen(false);
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -35,6 +90,7 @@ export default function ChatPage() {
     scrollToBottom();
   }, [messages]);
 
+  // Function to format document titles
   const getDocumentTitle = (url: string) => {
     const filename = url.split('/').pop() || '';
     return filename
@@ -45,6 +101,7 @@ export default function ChatPage() {
       .join(' ');
   };
 
+  // Handle document downloads
   const handleDownload = async (url: string) => {
     let downloadUrl: string | undefined;
     try {
@@ -74,6 +131,7 @@ export default function ChatPage() {
     }
   };
 
+  // Send messages to the API
   const sendMessageToAPI = async (message: string, isExpanded: boolean = false) => {
     try {
       const response = await fetch('/api/chat', {
@@ -83,7 +141,8 @@ export default function ChatPage() {
         },
         body: JSON.stringify({ 
           message,
-          is_expanded: isExpanded 
+          is_expanded: isExpanded,
+          input_type: selectedOption.id
         }),
       });
 
@@ -102,6 +161,7 @@ export default function ChatPage() {
     }
   };
 
+  // Handle expanding conversation
   const handleExpandConversation = async (message: Message, index: number) => {
     if (loading) return;
     
@@ -123,6 +183,7 @@ export default function ChatPage() {
     }
   };
 
+  // Handle form submission
   const handleSubmit = async (e?: React.FormEvent<HTMLFormElement> | { preventDefault: () => void }) => {
     if (e) {
       e.preventDefault();
@@ -149,18 +210,17 @@ export default function ChatPage() {
     }
   };
 
+  // Handle clicking FAQ questions
   const handleQuestionClick = async (question: string) => {
     if (loading) return;
     
     setError(null);
     setLoading(true);
     
-    // Add user's question to messages immediately
     const userMessage: Message = { role: 'user', content: question };
     setMessages(prev => [...prev, userMessage]);
 
     try {
-      // Get AI response directly
       const aiResponse = await sendMessageToAPI(question, false);
       setMessages(prev => [...prev, { ...aiResponse, isExpanded: false }]);
     } catch (err) {
@@ -171,6 +231,7 @@ export default function ChatPage() {
     }
   };
 
+  // Handle textarea height adjustments
   const updateTextareaHeight = (element: HTMLTextAreaElement) => {
     const minHeight = 60;
     const maxHeight = 150;
@@ -183,6 +244,7 @@ export default function ChatPage() {
     setTextareaHeight(`${newHeight}px`);
   };
 
+  // Initialize textarea
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.focus();
@@ -190,6 +252,7 @@ export default function ChatPage() {
     }
   }, []);
 
+  // References component for displaying document references
   const References = ({ urls }: { urls: Array<{ url: string; content: string }> }) => {
     if (!urls || urls.length === 0) return null;
 
@@ -251,6 +314,7 @@ export default function ChatPage() {
     );
   };
 
+  // Fetch FAQ questions
   useEffect(() => {
     const fetchQuestions = async () => {
       try {
@@ -270,7 +334,7 @@ export default function ChatPage() {
       } catch (err) {
         console.error('Error fetching questions:', err);
         setError(err instanceof Error ? err.message : 'Failed to load suggested questions');
-        setQuestions([]); // Set empty array on error
+        setQuestions([]);
       } finally {
         setQuestionsLoading(false);
       }
@@ -330,25 +394,26 @@ export default function ChatPage() {
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col w-full lg:w-auto">
-        {/* Add Document Button */}
+        {/* Combined Header with Document Button */}
         <div className="bg-white p-4 border-b shadow-sm">
-          <button 
-            className="flex items-center gap-2 px-4 py-2 bg-[#0A0F5C] text-white rounded-md hover:bg-[#1a2070] transition-colors"
-            onClick={() => window.location.href = '/documents'}
-          >
-            <FileText size={20} />
-            <span>Documents</span>
-          </button>
-        </div>
-
-        {/* Desktop Header */}
-        <div className="hidden lg:block bg-white py-4 px-6">
-          <h2 className="text-lg font-semibold text-gray-800">Chat Assistant</h2>
-          <p className="text-sm text-gray-500">Ask me anything about Connect America</p>
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-800">Chat Assistant</h2>
+              <p className="text-sm text-gray-500">Ask me anything about Connect America</p>
+            </div>
+            <button 
+              className="flex items-center gap-2 px-4 py-2 bg-[#0A0F5C] text-white rounded-md hover:bg-[#1a2070] transition-colors ml-4"
+              onClick={() => window.location.href = '/documents'}
+            >
+              <FileText size={20} />
+              <span>Documents</span>
+            </button>
+          </div>
         </div>
 
         {/* Messages Area */}
-        <div className="flex-1 bg-gray-50 overflow-y-auto px-2 sm:px-4 pt-14 lg:pt-0">
+        <div className="flex-1 bg-gray-50 overflow-y-auto px-2 sm:px-4 pt-4">
+          {/* Welcome Screen - Shown when no messages exist */}
           {messages.length === 0 && (
             <div className="flex flex-col items-center gap-8 py-8 px-4">
               <div className="text-center">
@@ -360,6 +425,7 @@ export default function ChatPage() {
                 <h2 className="text-lg font-semibold text-gray-700 mb-4 px-4">Frequently Asked Questions</h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 px-4">
                   {questionsLoading ? (
+                    // Loading skeleton for questions
                     Array(3).fill(null).map((_, index) => (
                       <div
                         key={index}
@@ -371,6 +437,7 @@ export default function ChatPage() {
                       </div>
                     ))
                   ) : (
+                    // Render actual questions when loaded
                     questions.map((q, index) => (
                       <button
                         key={index}
@@ -411,6 +478,7 @@ export default function ChatPage() {
             </div>
           )}
           
+          {/* Chat Messages */}
           {messages.map((message, index) => (
             <div key={index}>
               <div className={`${
@@ -463,6 +531,7 @@ export default function ChatPage() {
             </div>
           ))}
           
+          {/* Loading indicator */}
           {loading && (
             <div className="bg-white py-3 px-4">
               <div className="flex items-center gap-2 text-gray-500 text-sm">
@@ -472,6 +541,7 @@ export default function ChatPage() {
             </div>
           )}
           
+          {/* Error message */}
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mt-2">
               {error}
@@ -487,6 +557,40 @@ export default function ChatPage() {
             onSubmit={handleSubmit} 
             className="flex items-center gap-4 p-4"
           >
+            {/* Input Type Selector Dropdown */}
+            <div className="relative" ref={dropdownRef}>
+              <button
+                type="button"
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="flex items-center justify-center h-12 w-12 bg-white rounded-lg
+                  hover:bg-gray-50 transition-colors border border-gray-200
+                  text-gray-600 hover:text-gray-800"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+
+              {/* Dropdown Menu */}
+              {isDropdownOpen && (
+                <div className="absolute bottom-full mb-2 left-0 w-48 bg-white rounded-lg shadow-lg
+                  border border-gray-200 py-2 z-50">
+                  {inputOptions.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => handleOptionSelect(option)}
+                      className={`w-full px-4 py-2 text-left hover:bg-gray-50
+                        ${selectedOption.id === option.id ? 'bg-gray-50' : ''}
+                        flex flex-col gap-1`}
+                    >
+                      <span className="font-medium text-gray-800">{option.label}</span>
+                      <span className="text-xs text-gray-500">{option.description}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Message Input Field */}
             <div className="flex-1 relative">
               <textarea 
                 ref={textareaRef}
@@ -504,23 +608,24 @@ export default function ChatPage() {
                   maxHeight: '150px',
                   minHeight: '60px',
                 }}
-                placeholder="Type your message here..."
-                rows={1}
+                placeholder={selectedOption.id === 'advice' 
+                  ? "Ask for advice..."
+                  : "Type your message here..."}
                 value={inputValue}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                onChange={(e) => {
                   e.preventDefault();
                   const target = e.target;
                   setInputValue(target.value);
                   updateTextareaHeight(target);
                 }}
-                onFocus={(e: React.FocusEvent<HTMLTextAreaElement>) => {
+                onFocus={(e) => {
                   updateTextareaHeight(e.target);
                 }}
-                onClick={(e: React.MouseEvent<HTMLTextAreaElement>) => {
+                onClick={(e) => {
                   e.currentTarget.focus();
                 }}
                 disabled={loading}
-                onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+                onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     if (inputValue.trim()) {
@@ -532,6 +637,8 @@ export default function ChatPage() {
                 spellCheck="false"
               />
             </div>
+
+            {/* Send Button */}
             <button 
               type="submit"
               disabled={loading || !inputValue.trim()}
@@ -567,7 +674,7 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Overlay for mobile sidebar */}
+      {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
