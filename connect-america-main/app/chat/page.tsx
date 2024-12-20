@@ -123,8 +123,10 @@ export default function ChatPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement> | { preventDefault: () => void }) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent<HTMLFormElement> | { preventDefault: () => void }) => {
+    if (e) {
+      e.preventDefault();
+    }
     const messageToSend = inputValue.trim();
     
     if (messageToSend) {
@@ -147,9 +149,26 @@ export default function ChatPage() {
     }
   };
 
-  const handleQuestionClick = (question: string) => {
-    setInputValue(question);
-    handleSubmit({ preventDefault: () => {} });
+  const handleQuestionClick = async (question: string) => {
+    if (loading) return;
+    
+    setError(null);
+    setLoading(true);
+    
+    // Add user's question to messages immediately
+    const userMessage: Message = { role: 'user', content: question };
+    setMessages(prev => [...prev, userMessage]);
+
+    try {
+      // Get AI response directly
+      const aiResponse = await sendMessageToAPI(question, false);
+      setMessages(prev => [...prev, { ...aiResponse, isExpanded: false }]);
+    } catch (err) {
+      console.error('FAQ Question Error:', err);
+      setError('Failed to get response. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const updateTextareaHeight = (element: HTMLTextAreaElement) => {
@@ -356,13 +375,16 @@ export default function ChatPage() {
                       <button
                         key={index}
                         onClick={() => handleQuestionClick(q.question_text)}
+                        disabled={loading}
                         className="bg-white p-6 rounded-xl shadow-sm hover:shadow-md
                           border border-gray-200 text-left
                           hover:border-blue-500 transition-all
-                          group flex flex-col h-full w-full"
+                          group flex flex-col h-full w-full
+                          relative overflow-hidden
+                          disabled:cursor-not-allowed disabled:opacity-70"
                       >
-                        <div className="flex items-start gap-3">
-                          <span className="text-blue-600 shrink-0 mt-1">
+                        <div className="flex items-start gap-3 relative z-10">
+                          <span className="text-blue-600 shrink-0 mt-1 group-hover:text-blue-700">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path 
                                 strokeLinecap="round" 
@@ -376,6 +398,11 @@ export default function ChatPage() {
                             {q.question_text}
                           </span>
                         </div>
+                        {loading && (
+                          <div className="absolute inset-0 bg-white bg-opacity-50 flex items-center justify-center">
+                            <div className="animate-spin text-blue-600 text-xl">⟳</div>
+                          </div>
+                        )}
                       </button>
                     ))
                   )}
