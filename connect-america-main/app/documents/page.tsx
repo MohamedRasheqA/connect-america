@@ -30,7 +30,16 @@ export default function DocumentsPage() {
       
       // Ensure we have an array of documents
       if (Array.isArray(data)) {
-        setDocuments(data);
+        // Deduplicate documents based on name
+        const uniqueDocuments = data.reduce((acc: Document[], current) => {
+          const existingDoc = acc.find(doc => doc.name.toLowerCase() === current.name.toLowerCase());
+          if (!existingDoc) {
+            acc.push(current);
+          }
+          return acc;
+        }, []);
+        
+        setDocuments(uniqueDocuments);
       } else {
         console.error('Unexpected data format:', data);
         throw new Error('Invalid data format received');
