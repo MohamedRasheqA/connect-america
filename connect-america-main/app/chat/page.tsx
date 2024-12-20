@@ -485,65 +485,64 @@ export default function ChatPage() {
           <form 
             ref={formRef}
             onSubmit={handleSubmit} 
-            className="relative flex items-center"
+            className="flex items-center gap-4 p-4"
           >
-            <textarea 
-              ref={textareaRef}
-              className="w-full bg-[#F5F7FF] focus:bg-white
-                text-gray-800 text-base font-medium placeholder-gray-400
-                border-0 outline-none resize-none 
-                py-4 px-6
-                overflow-auto transition-all duration-200
-                focus:ring-2 focus:ring-blue-500
-                cursor-text
-                leading-normal"
-              style={{
-                height: textareaHeight,
-                maxHeight: '150px',
-                minHeight: '60px',
-              }}
-              placeholder="Type your message here..."
-              rows={1}
-              value={inputValue}
-              onChange={(e) => {
-                e.preventDefault();
-                const target = e.target;
-                setInputValue(target.value);
-                updateTextareaHeight(target);
-              }}
-              onFocus={(e) => {
-                updateTextareaHeight(e.target);
-              }}
-              onClick={(e) => {
-                e.currentTarget.focus();
-              }}
-              disabled={loading}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+            <div className="flex-1 relative">
+              <textarea 
+                ref={textareaRef}
+                className="w-full bg-[#F5F7FF] focus:bg-white
+                  text-gray-800 text-base font-medium placeholder-gray-400
+                  border-0 outline-none resize-none 
+                  py-4 px-6
+                  rounded-lg
+                  overflow-auto transition-all duration-200
+                  focus:ring-2 focus:ring-blue-500
+                  cursor-text
+                  leading-normal"
+                style={{
+                  height: textareaHeight,
+                  maxHeight: '150px',
+                  minHeight: '60px',
+                }}
+                placeholder="Type your message here..."
+                rows={1}
+                value={inputValue}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
                   e.preventDefault();
-                  if (inputValue.trim()) {
-                    formRef.current?.requestSubmit();
+                  const target = e.target;
+                  setInputValue(target.value);
+                  updateTextareaHeight(target);
+                }}
+                onFocus={(e: React.FocusEvent<HTMLTextAreaElement>) => {
+                  updateTextareaHeight(e.target);
+                }}
+                onClick={(e: React.MouseEvent<HTMLTextAreaElement>) => {
+                  e.currentTarget.focus();
+                }}
+                disabled={loading}
+                onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (inputValue.trim()) {
+                      formRef.current?.requestSubmit();
+                    }
                   }
-                }
-              }}
-              autoComplete="off"
-              spellCheck="false"
-            />
+                }}
+                autoComplete="off"
+                spellCheck="false"
+              />
+            </div>
             <button 
               type="submit"
               disabled={loading || !inputValue.trim()}
-              className="absolute right-4
-                bg-[#0A0F5C] text-white 
+              className="bg-[#0A0F5C] text-white 
                 p-2.5
                 rounded-lg hover:bg-blue-900 
                 transition-colors 
                 disabled:opacity-50 
                 disabled:cursor-not-allowed
-                flex items-center justify-center"
-              style={{
-                top: '50%',
-                transform: 'translateY(-50%)'
-              }}
+                flex items-center justify-center
+                h-12 w-12 flex-shrink-0"
             >
               {loading ? (
                 <span className="animate-spin text-xl">⟳</span>
