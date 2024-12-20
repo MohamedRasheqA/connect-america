@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { FileText, Search } from 'lucide-react';
+import { FileText } from 'lucide-react';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -155,10 +155,12 @@ export default function ChatPage() {
     setError(null);
     setLoading(true);
     
+    // Add user's question to messages immediately
     const userMessage: Message = { role: 'user', content: question };
     setMessages(prev => [...prev, userMessage]);
 
     try {
+      // Get AI response directly
       const aiResponse = await sendMessageToAPI(question, false);
       setMessages(prev => [...prev, { ...aiResponse, isExpanded: false }]);
     } catch (err) {
@@ -210,89 +212,7 @@ export default function ChatPage() {
                     {getDocumentTitle(url)}
                   </h3>
                 </div>
-                <p className="text-gray-500 mb-6">How can I assist you today?</p>
-                {!questionsLoading && questions.length > 0 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-2xl">
-                    {questions.map((question, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => handleQuestionClick(question.question_text)}
-                        className="p-3 text-left rounded-lg border border-gray-200 hover:border-blue-500 bg-white text-sm text-gray-700 hover:text-blue-600 transition-colors"
-                      >
-                        {question.question_text}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-          {messages.map((message, index) => (
-            <div
-              key={index}
-              className={`mb-4 ${
-                message.role === 'assistant'
-                  ? 'bg-white shadow-sm rounded-lg p-4'
-                  : 'bg-blue-50 rounded-lg p-4'
-              }`}
-            >
-              <div className="prose max-w-none">
-                <ReactMarkdown>{message.content}</ReactMarkdown>
-              </div>
-              {message.urls && <References urls={message.urls} />}
-              {message.role === 'assistant' && !message.isExpanded && (
-                <button
-                  onClick={() => handleExpandConversation(message, index)}
-                  className="mt-2 text-blue-600 hover:text-blue-700 text-sm font-medium"
-                  disabled={loading}
-                >
-                  {loading ? 'Expanding...' : 'Expand response'}
-                </button>
-              )}
-            </div>
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input Area with External Search Button */}
-        <div className="bg-white border-t p-4">
-          {error && (
-            <div className="mb-4 p-4 bg-red-100 text-red-700 rounded-lg">
-              {error}
-            </div>
-          )}
-          <form onSubmit={handleSubmit} ref={formRef} className="flex gap-2">
-            <textarea
-              ref={textareaRef}
-              value={inputValue}
-              onChange={(e) => {
-                setInputValue(e.target.value);
-                updateTextareaHeight(e.target);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSubmit();
-                }
-              }}
-              placeholder="Type your message here..."
-              style={{ height: textareaHeight }}
-              className="flex-1 resize-none border rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={loading}
-            />
-            <button
-              type="submit"
-              className="px-4 py-2 bg-[#0A0F5C] text-white rounded-lg hover:bg-[#1a2070] transition-colors flex items-center gap-2"
-              disabled={loading}
-            >
-              <Search size={20} />
-            </button>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
-}text-sm text-gray-500 mt-1">
+                <p className="text-sm text-gray-500 mt-1">
                   {url.includes('.pdf') ? 'PDF Document' : 
                    url.includes('.doc') ? 'Word Document' : 
                    'Document'}
@@ -430,92 +350,231 @@ export default function ChatPage() {
         {/* Messages Area */}
         <div className="flex-1 bg-gray-50 overflow-y-auto px-2 sm:px-4 pt-14 lg:pt-0">
           {messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full">
+            <div className="flex flex-col items-center gap-8 py-8 px-4">
               <div className="text-center">
-                <h3 className="text-lg font-semibold text-gray-700 mb-2">
-                  Welcome to Connect America Support
-                </h3>
-                <p className="text-gray-500 mb-6">How can I assist you today?</p>
-                {!questionsLoading && questions.length > 0 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-2xl">
-                    {questions.map((question, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => handleQuestionClick(question.question_text)}
-                        className="p-3 text-left rounded-lg border border-gray-200 hover:border-blue-500 bg-white text-sm text-gray-700 hover:text-blue-600 transition-colors"
+                <p className="text-2xl font-semibold text-gray-800">👋 Welcome to Connect America Support</p>
+                <p className="text-base text-gray-600 mt-2">How can I help you today?</p>
+              </div>
+              
+              <div className="w-full max-w-4xl mx-auto">
+                <h2 className="text-lg font-semibold text-gray-700 mb-4 px-4">Frequently Asked Questions</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 px-4">
+                  {questionsLoading ? (
+                    Array(3).fill(null).map((_, index) => (
+                      <div
+                        key={index}
+                        className="bg-white p-6 rounded-xl shadow-sm
+                          border border-gray-200 animate-pulse h-32"
                       >
-                        {question.question_text}
+                        <div className="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
+                        <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                      </div>
+                    ))
+                  ) : (
+                    questions.map((q, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleQuestionClick(q.question_text)}
+                        disabled={loading}
+                        className="bg-white p-6 rounded-xl shadow-sm hover:shadow-md
+                          border border-gray-200 text-left
+                          hover:border-blue-500 transition-all
+                          group flex flex-col h-full w-full
+                          relative overflow-hidden
+                          disabled:cursor-not-allowed disabled:opacity-70"
+                      >
+                        <div className="flex items-start gap-3 relative z-10">
+                          <span className="text-blue-600 shrink-0 mt-1 group-hover:text-blue-700">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                                strokeWidth="2" 
+                                d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                              />
+                            </svg>
+                          </span>
+                          <span className="text-gray-700 group-hover:text-gray-900 font-medium">
+                            {q.question_text}
+                          </span>
+                        </div>
+                        {loading && (
+                          <div className="absolute inset-0 bg-white bg-opacity-50 flex items-center justify-center">
+                            <div className="animate-spin text-blue-600 text-xl">⟳</div>
+                          </div>
+                        )}
                       </button>
-                    ))}
-                  </div>
-                )}
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           )}
           
           {messages.map((message, index) => (
-            <div
-              key={index}
-              className={`mb-4 ${
-                message.role === 'assistant'
-                  ? 'bg-white shadow-sm rounded-lg p-4'
-                  : 'bg-blue-50 rounded-lg p-4'
-              }`}
-            >
-              <div className="prose max-w-none">
-                <ReactMarkdown>{message.content}</ReactMarkdown>
+            <div key={index}>
+              <div className={`${
+                message.role === 'assistant' 
+                  ? 'bg-white' 
+                  : 'bg-[#F5F7FF]'
+              } py-4 sm:py-5 px-5 sm:px-6 mb-2`}>
+                <div className="text-sm font-medium mb-1.5 text-gray-600">
+                  {message.role === 'assistant' ? 'AI Assistant' : 'You'}
+                </div>
+                <div className="text-gray-800 prose max-w-none">
+                  <ReactMarkdown>
+                    {message.content}
+                  </ReactMarkdown>
+                </div>
+                {message.role === 'assistant' && !message.isExpanded && (
+                  <div className="mt-4">
+                    <button
+                      onClick={() => handleExpandConversation(message, index)}
+                      className="text-blue-600 hover:text-blue-800 font-medium flex items-center gap-2"
+                      disabled={loading}
+                    >
+                      {loading ? (
+                        <>
+                          <svg className="animate-spin h-4 w-4" 
+                            xmlns="http://www.w3.org/2000/svg" 
+                            fill="none" 
+                            viewBox="0 0 24 24"
+                          >
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                          </svg>
+                          <span>Expanding...</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"/>
+                          </svg>
+                          <span>Expand conversation</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
-              {message.urls && <References urls={message.urls} />}
-              {message.role === 'assistant' && !message.isExpanded && (
-                <button
-                  onClick={() => handleExpandConversation(message, index)}
-                  className="mt-2 text-blue-600 hover:text-blue-700 text-sm font-medium"
-                  disabled={loading}
-                >
-                  {loading ? 'Expanding...' : 'Expand response'}
-                </button>
+              {message.urls && message.urls.length > 0 && (
+                <References urls={message.urls} />
               )}
             </div>
           ))}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input Area with External Search Button */}
-        <div className="bg-white border-t p-4">
+          
+          {loading && (
+            <div className="bg-white py-3 px-4">
+              <div className="flex items-center gap-2 text-gray-500 text-sm">
+                <div className="animate-spin">⟳</div>
+                <div>Processing your request...</div>
+              </div>
+            </div>
+          )}
+          
           {error && (
-            <div className="mb-4 p-4 bg-red-100 text-red-700 rounded-lg">
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mt-2">
               {error}
             </div>
           )}
-          <form onSubmit={handleSubmit} ref={formRef} className="flex gap-2">
-            <textarea
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input Area */}
+        <div className="bg-[#F0F2FF] sticky bottom-0 z-10">
+          <form 
+            ref={formRef}
+            onSubmit={handleSubmit} 
+            className="relative flex items-center"
+          >
+            <textarea 
               ref={textareaRef}
+              className="w-full bg-[#F5F7FF] focus:bg-white
+                text-gray-800 text-base font-medium placeholder-gray-400
+                border-0 outline-none resize-none 
+                py-4 px-6
+                overflow-auto transition-all duration-200
+                focus:ring-2 focus:ring-blue-500
+                cursor-text
+                leading-normal"
+              style={{
+                height: textareaHeight,
+                maxHeight: '150px',
+                minHeight: '60px',
+              }}
+              placeholder="Type your message here..."
+              rows={1}
               value={inputValue}
               onChange={(e) => {
-                setInputValue(e.target.value);
+                e.preventDefault();
+                const target = e.target;
+                setInputValue(target.value);
+                updateTextareaHeight(target);
+              }}
+              onFocus={(e) => {
                 updateTextareaHeight(e.target);
               }}
+              onClick={(e) => {
+                e.currentTarget.focus();
+              }}
+              disabled={loading}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
-                  handleSubmit();
+                  if (inputValue.trim()) {
+                    formRef.current?.requestSubmit();
+                  }
                 }
               }}
-              placeholder="Type your message here..."
-              style={{ height: textareaHeight }}
-              className="flex-1 resize-none border rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={loading}
+              autoComplete="off"
+              spellCheck="false"
             />
-            <button
+            <button 
               type="submit"
-              className="px-4 py-2 bg-[#0A0F5C] text-white rounded-lg hover:bg-[#1a2070] transition-colors flex items-center gap-2"
-              disabled={loading}
+              disabled={loading || !inputValue.trim()}
+              className="absolute right-4
+                bg-[#0A0F5C] text-white 
+                p-2.5
+                rounded-lg hover:bg-blue-900 
+                transition-colors 
+                disabled:opacity-50 
+                disabled:cursor-not-allowed
+                flex items-center justify-center"
+              style={{
+                top: '50%',
+                transform: 'translateY(-50%)'
+              }}
             >
-              <Search size={20} />
+              {loading ? (
+                <span className="animate-spin text-xl">⟳</span>
+              ) : (
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  className="w-5 h-5"
+                >
+                  <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth={2} 
+                    d="M13.5 19l7-7-7-7M20.5 12H4" 
+                  />
+                </svg>
+              )}
             </button>
           </form>
         </div>
       </div>
+
+      {/* Overlay for mobile sidebar */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
     </div>
   );
 }
