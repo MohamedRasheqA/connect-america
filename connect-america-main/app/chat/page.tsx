@@ -237,13 +237,21 @@ export default function ChatPage() {
       try {
         const response = await fetch('/api/questions');
         if (!response.ok) {
-          throw new Error('Failed to fetch questions');
+          const errorData = await response.json().catch(() => null);
+          throw new Error(
+            errorData?.message || 
+            `Failed to fetch questions (Status: ${response.status})`
+          );
         }
         const data = await response.json();
+        if (!Array.isArray(data)) {
+          throw new Error('Invalid response format: expected an array of questions');
+        }
         setQuestions(data);
       } catch (err) {
         console.error('Error fetching questions:', err);
-        setError('Failed to load suggested questions');
+        setError(err instanceof Error ? err.message : 'Failed to load suggested questions');
+        setQuestions([]); // Set empty array on error
       } finally {
         setQuestionsLoading(false);
       }
@@ -351,7 +359,7 @@ export default function ChatPage() {
                         className="bg-white p-6 rounded-xl shadow-sm hover:shadow-md
                           border border-gray-200 text-left
                           hover:border-blue-500 transition-all
-                          group flex flex-col h-full"
+                          group flex flex-col h-full w-full"
                       >
                         <div className="flex items-start gap-3">
                           <span className="text-blue-600 shrink-0 mt-1">
@@ -367,12 +375,6 @@ export default function ChatPage() {
                           <span className="text-gray-700 group-hover:text-gray-900 font-medium">
                             {q.question_text}
                           </span>
-                        </div>
-                        <div className="mt-auto pt-4 flex items-center text-sm text-blue-600 group-hover:text-blue-700">
-                          <span className="mr-2">Get answer</span>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/>
-                          </svg>
                         </div>
                       </button>
                     ))
