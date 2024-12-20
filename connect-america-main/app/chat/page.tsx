@@ -23,6 +23,317 @@ interface InputOption {
   description: string;
 }
 
+// Loading Spinner component
+const LoadingSpinner = () => (
+  <svg 
+    className="animate-spin h-4 w-4" 
+    xmlns="http://www.w3.org/2000/svg" 
+    fill="none" 
+    viewBox="0 0 24 24"
+  >
+    <circle 
+      className="opacity-25" 
+      cx="12" 
+      cy="12" 
+      r="10" 
+      stroke="currentColor" 
+      strokeWidth="4"
+    />
+    <path 
+      className="opacity-75" 
+      fill="currentColor" 
+      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+    />
+  </svg>
+);
+
+// Expand Icon component
+const ExpandIcon = () => (
+  <svg 
+    className="w-4 h-4" 
+    fill="none" 
+    stroke="currentColor" 
+    viewBox="0 0 24 24"
+  >
+    <path 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      strokeWidth="2" 
+      d="M19 9l-7 7-7-7"
+    />
+  </svg>
+);
+
+// ExpandButton component
+const ExpandButton = ({ 
+  loading, 
+  onClick 
+}: { 
+  loading: boolean;
+  onClick: () => void;
+}) => (
+  <button
+    onClick={onClick}
+    className="text-blue-600 hover:text-blue-800 font-medium flex items-center gap-2"
+    disabled={loading}
+  >
+    {loading ? (
+      <>
+        <LoadingSpinner />
+        <span>Expanding...</span>
+      </>
+    ) : (
+      <>
+        <ExpandIcon />
+        <span>Expand conversation</span>
+      </>
+    )}
+  </button>
+);
+
+// MarkdownChat component for rendering markdown content with consistent styling
+const MarkdownChat = ({ content }: { content: string }) => {
+  return (
+    <div className="prose prose-slate max-w-none">
+      <style jsx global>{`
+        /* Typography Styles with Enhanced Indentation */
+        .prose h1 {
+          @apply text-2xl font-bold mt-6 mb-4 text-gray-900 pl-0;
+        }
+        .prose h2 {
+          @apply text-xl font-semibold mt-5 mb-3 text-gray-800 pl-4;
+        }
+        .prose h3 {
+          @apply text-lg font-medium mt-4 mb-2 text-gray-800 pl-8;
+        }
+        .prose p {
+          @apply my-3 text-gray-700 leading-relaxed;
+          padding-left: inherit;
+        }
+
+        /* Section Content Indentation */
+        .prose h1 + * {
+          @apply pl-0;
+        }
+        .prose h2 + * {
+          @apply pl-4;
+        }
+        .prose h3 + * {
+          @apply pl-8;
+        }
+
+        /* Maintain Indentation for Sections */
+        .prose h1 ~ p:not(:has(+ h2)),
+        .prose h1 ~ ul:not(:has(+ h2)),
+        .prose h1 ~ ol:not(:has(+ h2)) {
+          @apply pl-0;
+        }
+        
+        .prose h2 ~ p:not(:has(+ h3)),
+        .prose h2 ~ ul:not(:has(+ h3)),
+        .prose h2 ~ ol:not(:has(+ h3)) {
+          @apply pl-4;
+        }
+        
+        .prose h3 ~ p:not(:has(+ h4)),
+        .prose h3 ~ ul:not(:has(+ h4)),
+        .prose h3 ~ ol:not(:has(+ h4)) {
+          @apply pl-8;
+        }
+
+        /* List Styles with Indentation */
+        .prose ul {
+          @apply my-3 ml-6 space-y-2 list-disc;
+          padding-left: inherit;
+        }
+        .prose ol {
+          @apply my-3 ml-6 space-y-2 list-decimal;
+          padding-left: inherit;
+        }
+
+        /* Other Styles Remain Same */
+        .prose li {
+          @apply text-gray-700;
+        }
+        .prose li > p {
+          @apply my-0;
+        }
+        .prose strong {
+          @apply font-semibold text-gray-900;
+        }
+        .prose blockquote {
+          @apply pl-4 border-l-4 border-gray-200 italic text-gray-700;
+          margin-left: inherit;
+        }
+        .prose code {
+          @apply bg-gray-50 px-1.5 py-0.5 rounded text-sm font-mono text-gray-800;
+        }
+        .prose pre {
+          @apply bg-gray-50 p-4 rounded-lg overflow-x-auto;
+          margin-left: inherit;
+        }
+        .prose pre code {
+          @apply bg-transparent p-0;
+        }
+
+        /* Additional Styles for Tables and Links */
+        .prose table {
+          @apply min-w-full divide-y divide-gray-200;
+          margin-left: inherit;
+        }
+        .prose th {
+          @apply px-4 py-2 bg-gray-50 text-left font-medium text-gray-700;
+        }
+        .prose td {
+          @apply px-4 py-2 text-gray-700 border-t;
+        }
+        .prose a {
+          @apply text-blue-600 hover:text-blue-800 underline;
+        }
+
+        /* Spacing Control */
+        .prose > :first-child {
+          @apply mt-0;
+        }
+        .prose > :last-child {
+          @apply mb-0;
+        }
+      `}</style>
+
+      <ReactMarkdown className="prose">
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+};
+
+// ChatMessage component for displaying individual messages
+const ChatMessage = ({ 
+  message, 
+  index, 
+  loading, 
+  handleExpandConversation,
+  getDocumentTitle,
+  handleDownload 
+}: { 
+  message: Message;
+  index: number;
+  loading: boolean;
+  handleExpandConversation: (message: Message, index: number) => Promise<void>;
+  getDocumentTitle: (url: string) => string;
+  handleDownload: (url: string) => Promise<void>;
+}) => {
+  return (
+    <div className={`mb-4 ${
+      message.role === 'assistant' ? 'mr-12' : 'ml-12'
+    }`}>
+      <div className={`${
+        message.role === 'assistant' 
+          ? 'bg-white shadow-sm' 
+          : 'bg-[#F5F7FF] shadow-md'
+      } py-4 sm:py-5 px-5 sm:px-6 rounded-lg`}>
+        <div className="text-sm font-medium mb-2 text-gray-600">
+          {message.role === 'assistant' ? 'AI Assistant' : 'You'}
+        </div>
+        <div className="text-gray-800">
+          {message.role === 'assistant' ? (
+            <MarkdownChat content={message.content} />
+          ) : (
+            <div className="text-gray-800">
+              {message.content}
+            </div>
+          )}
+        </div>
+        {message.role === 'assistant' && !message.isExpanded && (
+          <div className="mt-4">
+            <ExpandButton 
+              loading={loading}
+              onClick={() => handleExpandConversation(message, index)}
+            />
+          </div>
+        )}
+      </div>
+      {message.urls && message.urls.length > 0 && (
+        <References 
+          urls={message.urls} 
+          getDocumentTitle={getDocumentTitle} 
+          handleDownload={handleDownload} 
+        />
+      )}
+    </div>
+  );
+};
+
+// References component for displaying document references
+const References = ({ 
+  urls, 
+  getDocumentTitle,
+  handleDownload 
+}: { 
+  urls: Array<{ url: string; content: string }>;
+  getDocumentTitle: (url: string) => string;
+  handleDownload: (url: string) => Promise<void>;
+}) => {
+  if (!urls || urls.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-4 p-4 relative z-10 bg-transparent">
+      <h2 className="text-xl font-semibold text-gray-800 bg-white px-4 py-2 rounded-lg shadow-sm flex items-center gap-2">
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        Referenced Documents
+      </h2>
+      <div className="flex flex-col gap-3">
+        {urls.map(({ url }, index) => (
+          <div key={index} className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 rounded-lg border border-gray-200 hover:border-blue-500 transition-colors bg-white shadow-sm hover:shadow-md">
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-blue-700 font-semibold">#{index + 1}</span>
+                <h3 className="text-gray-900 text-lg font-medium">
+                  {getDocumentTitle(url)}
+                </h3>
+              </div>
+              <p className="text-sm text-gray-500 mt-1">
+                {url.includes('.pdf') ? 'PDF Document' : 
+                 url.includes('.doc') ? 'Word Document' : 
+                 'Document'}
+              </p>
+            </div>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <a 
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors flex-1 sm:flex-initial justify-center"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                View
+              </a>
+              <button 
+                onClick={() => handleDownload(url)}
+                className="flex items-center gap-2 px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 transition-colors flex-1 sm:flex-initial justify-center"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 export default function ChatPage() {
   // State management for chat functionality
   const [messages, setMessages] = useState<Message[]>([]);
@@ -192,6 +503,7 @@ export default function ChatPage() {
     
     if (messageToSend) {
       setError(null);
+      
       setLoading(true);
       
       const userMessage: Message = { role: 'user', content: messageToSend };
@@ -252,68 +564,6 @@ export default function ChatPage() {
     }
   }, []);
 
-  // References component for displaying document references
-  const References = ({ urls }: { urls: Array<{ url: string; content: string }> }) => {
-    if (!urls || urls.length === 0) return null;
-
-    return (
-      <div className="flex flex-col gap-4 p-4 relative z-10 bg-transparent">
-        <h2 className="text-xl font-semibold text-gray-800 bg-white px-4 py-2 rounded-lg shadow-sm flex items-center gap-2">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          Referenced Documents
-        </h2>
-        <div className="flex flex-col gap-3">
-          {urls.map(({ url }, index) => (
-            <div key={index} className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 rounded-lg border border-gray-200 hover:border-blue-500 transition-colors bg-white shadow-sm hover:shadow-md">
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-blue-700 font-semibold">#{index + 1}</span>
-                  <h3 className="text-gray-900 text-lg font-medium">
-                    {getDocumentTitle(url)}
-                  </h3>
-                </div>
-                <p className="text-sm text-gray-500 mt-1">
-                  {url.includes('.pdf') ? 'PDF Document' : 
-                   url.includes('.doc') ? 'Word Document' : 
-                   'Document'}
-                </p>
-              </div>
-              <div className="flex gap-2 w-full sm:w-auto">
-                <a 
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors flex-1 sm:flex-initial justify-center"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-                          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                  View
-                </a>
-                <button 
-                  onClick={() => handleDownload(url)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 transition-colors flex-1 sm:flex-initial justify-center"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  Download
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
   // Fetch FAQ questions
   useEffect(() => {
     const fetchQuestions = async () => {
@@ -322,8 +572,7 @@ export default function ChatPage() {
         if (!response.ok) {
           const errorData = await response.json().catch(() => null);
           throw new Error(
-            errorData?.message || 
-            `Failed to fetch questions (Status: ${response.status})`
+
           );
         }
         const data = await response.json();
@@ -480,55 +729,15 @@ export default function ChatPage() {
           
           {/* Chat Messages */}
           {messages.map((message, index) => (
-            <div key={index}>
-              <div className={`${
-                message.role === 'assistant' 
-                  ? 'bg-white' 
-                  : 'bg-[#F5F7FF]'
-              } py-4 sm:py-5 px-5 sm:px-6 mb-2`}>
-                <div className="text-sm font-medium mb-1.5 text-gray-600">
-                  {message.role === 'assistant' ? 'AI Assistant' : 'You'}
-                </div>
-                <div className="text-gray-800 prose max-w-none">
-                  <ReactMarkdown>
-                    {message.content}
-                  </ReactMarkdown>
-                </div>
-                {message.role === 'assistant' && !message.isExpanded && (
-                  <div className="mt-4">
-                    <button
-                      onClick={() => handleExpandConversation(message, index)}
-                      className="text-blue-600 hover:text-blue-800 font-medium flex items-center gap-2"
-                      disabled={loading}
-                    >
-                      {loading ? (
-                        <>
-                          <svg className="animate-spin h-4 w-4" 
-                            xmlns="http://www.w3.org/2000/svg" 
-                            fill="none" 
-                            viewBox="0 0 24 24"
-                          >
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                          </svg>
-                          <span>Expanding...</span>
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"/>
-                          </svg>
-                          <span>Expand conversation</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
-              </div>
-              {message.urls && message.urls.length > 0 && (
-                <References urls={message.urls} />
-              )}
-            </div>
+            <ChatMessage
+              key={index}
+              message={message}
+              index={index}
+              loading={loading}
+              handleExpandConversation={handleExpandConversation}
+              getDocumentTitle={getDocumentTitle}
+              handleDownload={handleDownload}
+            />
           ))}
           
           {/* Loading indicator */}
