@@ -23,6 +23,34 @@ interface InputOption {
   description: string;
 }
 
+// Add these utility functions at the top of the file
+const CHAT_STORAGE_KEY = 'connect_america_chat_messages';
+
+// Move localStorage operations into a client-side utility
+const ChatStorage = {
+  saveMessages: (messages: Message[]) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+    }
+  },
+  
+  loadMessages: (): Message[] => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const saved = localStorage.getItem(CHAT_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  },
+  
+  clearMessages: () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(CHAT_STORAGE_KEY);
+    }
+  }
+};
+
 // Loading Spinner component
 const LoadingSpinner = () => (
   <svg 
@@ -96,107 +124,147 @@ const MarkdownChat = ({ content }: { content: string }) => {
   return (
     <div className="prose prose-slate max-w-none">
       <style jsx global>{`
-        /* Typography Styles with Enhanced Indentation */
+        /* Base Typography */
+        .prose {
+          @apply text-base leading-relaxed;
+        }
+
+        /* Main Headings */
         .prose h1 {
-          @apply text-2xl font-bold mt-6 mb-4 text-gray-900 pl-0;
+          @apply text-2xl font-bold text-gray-900;
+          margin-top: 1.5rem;
+          margin-bottom: 1.5rem;
         }
+        
         .prose h2 {
-          @apply text-xl font-semibold mt-5 mb-3 text-gray-800 pl-4;
-        }
-        .prose h3 {
-          @apply text-lg font-medium mt-4 mb-2 text-gray-800 pl-8;
-        }
-        .prose p {
-          @apply my-3 text-gray-700 leading-relaxed;
-          padding-left: inherit;
+          @apply text-xl font-semibold text-gray-800;
+          margin-top: 2rem;
+          margin-bottom: 1.25rem;
         }
 
-        /* Section Content Indentation */
-        .prose h1 + * {
-          @apply pl-0;
-        }
-        .prose h2 + * {
-          @apply pl-4;
-        }
-        .prose h3 + * {
-          @apply pl-8;
-        }
-
-        /* Maintain Indentation for Sections */
-        .prose h1 ~ p:not(:has(+ h2)),
-        .prose h1 ~ ul:not(:has(+ h2)),
-        .prose h1 ~ ol:not(:has(+ h2)) {
-          @apply pl-0;
-        }
-        
-        .prose h2 ~ p:not(:has(+ h3)),
-        .prose h2 ~ ul:not(:has(+ h3)),
-        .prose h2 ~ ol:not(:has(+ h3)) {
-          @apply pl-4;
-        }
-        
-        .prose h3 ~ p:not(:has(+ h4)),
-        .prose h3 ~ ul:not(:has(+ h4)),
-        .prose h3 ~ ol:not(:has(+ h4)) {
-          @apply pl-8;
-        }
-
-        /* List Styles with Indentation */
-        .prose ul {
-          @apply my-3 ml-6 space-y-2 list-disc;
-          padding-left: inherit;
-        }
+        /* Numbered Lists */
         .prose ol {
-          @apply my-3 ml-6 space-y-2 list-decimal;
-          padding-left: inherit;
+          @apply list-none pl-0;
+          counter-reset: item;
+          margin-top: 1.5rem;
+          margin-bottom: 1.5rem;
+        }
+        
+        .prose ol > li {
+          @apply relative;
+          counter-increment: item;
+          padding-left: 0;
+          margin-bottom: 2rem;
+        }
+        
+        .prose ol > li:before {
+          @apply font-bold text-gray-900;
+          content: counter(item) ". ";
+          display: inline;
+          margin-right: 0.5rem;
         }
 
-        /* Other Styles Remain Same */
-        .prose li {
+        /* Bullet Lists */
+        .prose ul {
+          @apply list-none;
+          margin-top: 0.75rem;
+          margin-bottom: 0.75rem;
+        }
+        
+        .prose ul > li {
+          @apply relative;
+          padding-left: 2.5rem;
+          margin-bottom: 1.25rem;
+          line-height: 1.6;
+        }
+        
+        .prose ul > li:before {
+          content: "•";
+          @apply absolute text-gray-600;
+          left: 1rem;
+          top: -1px;
+          font-size: 1.25rem;
+        }
+
+        /* List Item Content */
+        .prose li strong {
+          @apply text-gray-800 font-semibold;
+          margin-right: 0.5rem;
+        }
+        
+        .prose li p {
+          @apply inline text-gray-700;
+          margin: 0;
+          line-height: 1.6;
+          margin-left: 0.25rem;
+        }
+
+        /* Paragraph Spacing */
+        .prose p {
           @apply text-gray-700;
+          margin-top: 0.75rem;
+          margin-bottom: 0.75rem;
+          line-height: 1.6;
         }
-        .prose li > p {
-          @apply my-0;
-        }
+
+        /* Text Elements */
         .prose strong {
           @apply font-semibold text-gray-900;
         }
-        .prose blockquote {
-          @apply pl-4 border-l-4 border-gray-200 italic text-gray-700;
-          margin-left: inherit;
-        }
-        .prose code {
-          @apply bg-gray-50 px-1.5 py-0.5 rounded text-sm font-mono text-gray-800;
-        }
-        .prose pre {
-          @apply bg-gray-50 p-4 rounded-lg overflow-x-auto;
-          margin-left: inherit;
-        }
-        .prose pre code {
-          @apply bg-transparent p-0;
+
+        /* List Item Descriptions */
+        .prose li > p:first-of-type {
+          @apply inline-block;
+          margin-top: 0.25rem;
         }
 
-        /* Additional Styles for Tables and Links */
-        .prose table {
-          @apply min-w-full divide-y divide-gray-200;
-          margin-left: inherit;
-        }
-        .prose th {
-          @apply px-4 py-2 bg-gray-50 text-left font-medium text-gray-700;
-        }
-        .prose td {
-          @apply px-4 py-2 text-gray-700 border-t;
-        }
-        .prose a {
-          @apply text-blue-600 hover:text-blue-800 underline;
+        /* Nested List Spacing */
+        .prose li > ul {
+          margin-top: 0.75rem;
+          margin-bottom: 0.75rem;
+          padding-left: 1rem;
         }
 
-        /* Spacing Control */
+        /* Section Spacing */
         .prose > :first-child {
           @apply mt-0;
         }
+        
         .prose > :last-child {
           @apply mb-0;
+        }
+
+        /* Additional Spacing Refinements */
+        .prose li + li {
+          margin-top: 0.75rem;
+        }
+
+        .prose h2 + ul,
+        .prose h2 + ol {
+          margin-top: 1rem;
+        }
+
+        /* Enhanced Readability */
+        .prose {
+          @apply text-gray-800;
+          line-height: 1.6;
+          font-size: 1rem;
+        }
+
+        /* List Item Title and Content Spacing */
+        .prose li strong + p {
+          margin-left: 0.5rem;
+        }
+
+        /* Bullet Point Alignment */
+        .prose ul > li {
+          display: flex;
+          align-items: flex-start;
+        }
+
+        .prose ul > li:before {
+          margin-right: 1rem;
+          margin-top: 0.25rem;
         }
       `}</style>
 
@@ -224,15 +292,13 @@ const ChatMessage = ({
   handleDownload: (url: string) => Promise<void>;
 }) => {
   return (
-    <div className={`mb-4 ${
-      message.role === 'assistant' ? 'mr-12' : 'ml-12'
-    }`}>
+    <div className="mb-2">
       <div className={`${
         message.role === 'assistant' 
           ? 'bg-white shadow-sm' 
           : 'bg-[#F5F7FF] shadow-md'
-      } py-4 sm:py-5 px-5 sm:px-6 rounded-lg`}>
-        <div className="text-sm font-medium mb-2 text-gray-600">
+      } py-4 sm:py-5 px-5 sm:px-6 rounded-lg mx-4 w-auto`}>
+        <div className="text-sm font-medium text-gray-600 mb-2">
           {message.role === 'assistant' ? 'AI Assistant' : 'You'}
         </div>
         <div className="text-gray-800">
@@ -277,15 +343,15 @@ const References = ({
   if (!urls || urls.length === 0) return null;
 
   return (
-    <div className="flex flex-col gap-4 p-4 relative z-10 bg-transparent">
-      <h2 className="text-xl font-semibold text-gray-800 bg-white px-4 py-2 rounded-lg shadow-sm flex items-center gap-2">
+    <div className="mx-4 mt-3 mb-4">
+      <h2 className="text-xl font-semibold text-gray-800 bg-white px-4 py-2 rounded-lg shadow-sm flex items-center gap-2 mb-3">
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
                 d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
         Referenced Documents
       </h2>
-      <div className="flex flex-col gap-3">
+      <div className="space-y-3">
         {urls.map(({ url }, index) => (
           <div key={index} className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 rounded-lg border border-gray-200 hover:border-blue-500 transition-colors bg-white shadow-sm hover:shadow-md">
             <div className="flex-1">
@@ -335,8 +401,32 @@ const References = ({
 };
 
 export default function ChatPage() {
-  // State management for chat functionality
+  // Initialize with empty array
   const [messages, setMessages] = useState<Message[]>([]);
+  const initialized = useRef(false);
+
+  // Load messages and handle refresh in useEffect
+  useEffect(() => {
+    if (!initialized.current) {
+      if (window.performance && window.performance.navigation.type === 1) {
+        ChatStorage.clearMessages();
+        setMessages([]);
+      } else {
+        const savedMessages = ChatStorage.loadMessages();
+        setMessages(savedMessages);
+      }
+      initialized.current = true;
+    }
+  }, []);
+
+  // Save messages when they change
+  useEffect(() => {
+    if (initialized.current) {
+      ChatStorage.saveMessages(messages);
+    }
+  }, [messages]);
+
+  // State management for chat functionality
   const [inputValue, setInputValue] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -481,11 +571,12 @@ export default function ChatPage() {
     
     try {
       const expandedResponse = await sendMessageToAPI(message.content, true);
-      setMessages(prevMessages => 
-        prevMessages.map((msg, i) => 
-          i === index ? { ...expandedResponse, isExpanded: true } : msg
-        )
-      );
+      setMessages(prev => {
+        const newMessages = [...prev];
+        newMessages[index] = { ...expandedResponse, isExpanded: true };
+        ChatStorage.saveMessages(newMessages);
+        return newMessages;
+      });
     } catch (err) {
       console.error('Expansion Error:', err);
       setError('Failed to expand response. Please try again.');
@@ -495,30 +586,24 @@ export default function ChatPage() {
   };
 
   // Handle form submission
-  const handleSubmit = async (e?: React.FormEvent<HTMLFormElement> | { preventDefault: () => void }) => {
-    if (e) {
-      e.preventDefault();
-    }
-    const messageToSend = inputValue.trim();
-    
-    if (messageToSend) {
-      setError(null);
-      
-      setLoading(true);
-      
-      const userMessage: Message = { role: 'user', content: messageToSend };
-      setMessages(prev => [...prev, userMessage]);
-      setInputValue('');
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputValue.trim() || loading) return;
 
-      try {
-        const aiResponse = await sendMessageToAPI(messageToSend, false);
-        setMessages(prev => [...prev, { ...aiResponse, isExpanded: false }]);
-      } catch (err: unknown) {
-        console.error('Chat Error:', err);
-        setError('Failed to get response. Please try again.');
-      } finally {
-        setLoading(false);
-      }
+    const userMessage: Message = { role: 'user', content: inputValue };
+    setMessages(prev => [...prev, userMessage]);
+    setInputValue('');
+    setError(null);
+    setLoading(true);
+
+    try {
+      const aiResponse = await sendMessageToAPI(inputValue, false);
+      setMessages(prev => [...prev, { ...aiResponse, isExpanded: false }]);
+    } catch (err) {
+      console.error('Chat Error:', err);
+      setError('Failed to get response. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -592,17 +677,29 @@ export default function ChatPage() {
     fetchQuestions();
   }, []);
 
+  // Add effect to save messages when they change
+  useEffect(() => {
+    ChatStorage.saveMessages(messages);
+  }, [messages]);
+
+  // Add a clear chat function (optional)
+  const clearChat = () => {
+    setMessages([]);
+    ChatStorage.clearMessages();
+  };
+
   return (
-    <div className="flex h-screen">
+    <div className="flex fixed inset-0 overflow-hidden">
       {/* Left Sidebar */}
       <div className={`
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         lg:translate-x-0
         fixed lg:relative
-        w-64 h-full
+        w-64 flex-none
         bg-[#0A0F5C] text-white
         transition-transform duration-300 ease-in-out
         z-40 lg:z-auto
+        h-full
       `}>
         <div className="p-4 flex flex-col h-full">
           <div className="mb-8 hidden lg:block">
@@ -610,7 +707,7 @@ export default function ChatPage() {
             <p className="text-sm text-gray-300 mt-2">AI Support Assistant</p>
           </div>
           
-          <nav className="flex-1">
+          <nav className="flex-1 overflow-y-auto">
             <div className="flex items-center gap-2 mb-4">
               <span className="text-teal-400">💬</span>
               <span className="text-teal-400 font-semibold">Recent Chats</span>
@@ -642,132 +739,140 @@ export default function ChatPage() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col w-full lg:w-auto">
-        {/* Combined Header with Document Button */}
-        <div className="bg-white p-4 border-b shadow-sm">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-800">Chat Assistant</h2>
-              <p className="text-sm text-gray-500">Ask me anything about Connect America</p>
+      <div className="flex-1 flex flex-col w-full lg:w-auto overflow-hidden">
+        {/* Header */}
+        <div className="bg-white flex-none border-b shadow-sm">
+          <div className="p-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-800">Chat Assistant</h2>
+                <p className="text-sm text-gray-500">Ask me anything about Connect America</p>
+              </div>
+              <button 
+                className="flex items-center gap-2 px-4 py-2 bg-[#0A0F5C] text-white rounded-md hover:bg-[#1a2070] transition-colors"
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.location.href = '/documents';
+                }}
+              >
+                <FileText size={20} />
+                <span>Documents</span>
+              </button>
             </div>
-            <button 
-              className="flex items-center gap-2 px-4 py-2 bg-[#0A0F5C] text-white rounded-md hover:bg-[#1a2070] transition-colors ml-4"
-              onClick={() => window.location.href = '/documents'}
-            >
-              <FileText size={20} />
-              <span>Documents</span>
-            </button>
           </div>
         </div>
 
-        {/* Messages Area */}
-        <div className="flex-1 bg-gray-50 overflow-y-auto px-2 sm:px-4 pt-4">
-          {/* Welcome Screen - Shown when no messages exist */}
-          {messages.length === 0 && (
-            <div className="flex flex-col items-center gap-8 py-8 px-4">
-              <div className="text-center">
-                <p className="text-2xl font-semibold text-gray-800">👋 Welcome to Connect America Support</p>
-                <p className="text-base text-gray-600 mt-2">How can I help you today?</p>
-              </div>
-              
-              <div className="w-full max-w-4xl mx-auto">
-                <h2 className="text-lg font-semibold text-gray-700 mb-4 px-4">Frequently Asked Questions</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 px-4">
-                  {questionsLoading ? (
-                    // Loading skeleton for questions
-                    Array(3).fill(null).map((_, index) => (
-                      <div
-                        key={index}
-                        className="bg-white p-6 rounded-xl shadow-sm
-                          border border-gray-200 animate-pulse h-32"
-                      >
-                        <div className="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
-                        <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-                      </div>
-                    ))
-                  ) : (
-                    // Render actual questions when loaded
-                    questions.map((q, index) => (
-                      <button
-                        key={index}
-                        onClick={() => handleQuestionClick(q.question_text)}
-                        disabled={loading}
-                        className="bg-white p-6 rounded-xl shadow-sm hover:shadow-md
-                          border border-gray-200 text-left
-                          hover:border-blue-500 transition-all
-                          group flex flex-col h-full w-full
-                          relative overflow-hidden
-                          disabled:cursor-not-allowed disabled:opacity-70"
-                      >
-                        <div className="flex items-start gap-3 relative z-10">
-                          <span className="text-blue-600 shrink-0 mt-1 group-hover:text-blue-700">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path 
-                                strokeLinecap="round" 
-                                strokeLinejoin="round" 
-                                strokeWidth="2" 
-                                d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                              />
-                            </svg>
-                          </span>
-                          <span className="text-gray-700 group-hover:text-gray-900 font-medium">
-                            {q.question_text}
-                          </span>
+        {/* Messages Area - Updated container */}
+        <div className="flex-1 bg-gray-50 overflow-y-auto">
+          <div className="container mx-auto max-w-5xl px-4 py-4">
+            {/* Welcome Screen */}
+            {messages.length === 0 && (
+              <div className="flex flex-col items-center gap-8 py-8">
+                <div className="text-center">
+                  <p className="text-2xl font-semibold text-gray-800">👋 Welcome to Connect America Support</p>
+                  <p className="text-base text-gray-600 mt-2">How can I help you today?</p>
+                </div>
+                
+                <div className="w-full max-w-4xl mx-auto">
+                  <h2 className="text-lg font-semibold text-gray-700 mb-4 px-4">Frequently Asked Questions</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 px-4">
+                    {questionsLoading ? (
+                      // Loading skeleton for questions
+                      Array(3).fill(null).map((_, index) => (
+                        <div
+                          key={index}
+                          className="bg-white p-6 rounded-xl shadow-sm
+                            border border-gray-200 animate-pulse h-32"
+                        >
+                          <div className="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
+                          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
                         </div>
-                        {loading && (
-                          <div className="absolute inset-0 bg-white bg-opacity-50 flex items-center justify-center">
-                            <div className="animate-spin text-blue-600 text-xl">⟳</div>
+                      ))
+                    ) : (
+                      // Render actual questions when loaded
+                      questions.map((q, index) => (
+                        <button
+                          key={index}
+                          onClick={() => handleQuestionClick(q.question_text)}
+                          disabled={loading}
+                          className="bg-white p-6 rounded-xl shadow-sm hover:shadow-md
+                            border border-gray-200 text-left
+                            hover:border-blue-500 transition-all
+                            group flex flex-col h-full w-full
+                            relative overflow-hidden
+                            disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          <div className="flex items-start gap-3 relative z-10">
+                            <span className="text-blue-600 shrink-0 mt-1 group-hover:text-blue-700">
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path 
+                                  strokeLinecap="round" 
+                                  strokeLinejoin="round" 
+                                  strokeWidth="2" 
+                                  d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                />
+                              </svg>
+                            </span>
+                            <span className="text-gray-700 group-hover:text-gray-900 font-medium">
+                              {q.question_text}
+                            </span>
                           </div>
-                        )}
-                      </button>
-                    ))
-                  )}
+                          {loading && (
+                            <div className="absolute inset-0 bg-white bg-opacity-50 flex items-center justify-center">
+                              <div className="animate-spin text-blue-600 text-xl">⟳</div>
+                            </div>
+                          )}
+                        </button>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
+            )}
+            
+            {/* Chat Messages */}
+            <div className="space-y-4">
+              {messages.map((message, index) => (
+                <ChatMessage
+                  key={index}
+                  message={message}
+                  index={index}
+                  loading={loading}
+                  handleExpandConversation={handleExpandConversation}
+                  getDocumentTitle={getDocumentTitle}
+                  handleDownload={handleDownload}
+                />
+              ))}
             </div>
-          )}
-          
-          {/* Chat Messages */}
-          {messages.map((message, index) => (
-            <ChatMessage
-              key={index}
-              message={message}
-              index={index}
-              loading={loading}
-              handleExpandConversation={handleExpandConversation}
-              getDocumentTitle={getDocumentTitle}
-              handleDownload={handleDownload}
-            />
-          ))}
-          
-          {/* Loading indicator */}
-          {loading && (
-            <div className="bg-white py-3 px-4">
-              <div className="flex items-center gap-2 text-gray-500 text-sm">
-                <div className="animate-spin">⟳</div>
-                <div>Processing your request...</div>
+            
+            {/* Loading and Error States */}
+            {loading && (
+              <div className="bg-white py-3 px-4 rounded-lg mx-4 mb-4">
+                <div className="flex items-center gap-2 text-gray-500 text-sm">
+                  <div className="animate-spin">⟳</div>
+                  <div>Processing your request...</div>
+                </div>
               </div>
-            </div>
-          )}
-          
-          {/* Error message */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mt-2">
-              {error}
-            </div>
-          )}
-          <div ref={messagesEndRef} />
+            )}
+            
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mx-4 mb-4">
+                {error}
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
         </div>
 
         {/* Input Area */}
-        <div className="bg-[#F0F2FF] sticky bottom-0 z-10">
+        <div className="bg-[#F0F2FF] flex-none">
           <form 
             ref={formRef}
             onSubmit={handleSubmit} 
             className="flex items-center gap-4 p-4"
           >
-            {/* Input Type Selector Dropdown */}
-            <div className="relative" ref={dropdownRef}>
+            {/* Input Type Selector */}
+            <div className="relative flex-none" ref={dropdownRef}>
               <button
                 type="button"
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -778,7 +883,6 @@ export default function ChatPage() {
                 <Plus className="w-5 h-5" />
               </button>
 
-              {/* Dropdown Menu */}
               {isDropdownOpen && (
                 <div className="absolute bottom-full mb-2 left-0 w-48 bg-white rounded-lg shadow-lg
                   border border-gray-200 py-2 z-50">
@@ -799,7 +903,7 @@ export default function ChatPage() {
               )}
             </div>
 
-            {/* Message Input Field */}
+            {/* Message Input */}
             <div className="flex-1 relative">
               <textarea 
                 ref={textareaRef}
@@ -851,14 +955,14 @@ export default function ChatPage() {
             <button 
               type="submit"
               disabled={loading || !inputValue.trim()}
-              className="bg-[#0A0F5C] text-white 
+              className="flex-none bg-[#0A0F5C] text-white 
                 p-2.5
                 rounded-lg hover:bg-blue-900 
                 transition-colors 
                 disabled:opacity-50 
                 disabled:cursor-not-allowed
                 flex items-center justify-center
-                h-12 w-12 flex-shrink-0"
+                h-12 w-12"
             >
               {loading ? (
                 <span className="animate-spin text-xl">⟳</span>
