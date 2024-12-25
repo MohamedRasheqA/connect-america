@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { FileText, Plus, ChevronDown } from 'lucide-react';
+import { FileText, Plus, ChevronDown, Menu } from 'lucide-react';
 import React from 'react';
 
 // Define the structure for chat messages
@@ -25,31 +25,75 @@ interface InputOption {
   description: string;
 }
 
-// Add these utility functions at the top of the file
-const CHAT_STORAGE_KEY = 'connect_america_chat_messages';
+// Add these constants at the top with other interfaces
+const CHAT_SESSIONS_KEY = 'connect_america_chat_sessions';
+const MAX_SESSIONS = 10;
 
-// Move localStorage operations into a client-side utility
+interface ChatSession {
+  id: string;
+  timestamp: number;
+  messages: Message[];
+  preview: string;
+}
+
+// Update the ChatStorage utility
 const ChatStorage = {
-  saveMessages: (messages: Message[]) => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+  saveCurrentSession: (messages: Message[]) => {
+    if (typeof window === 'undefined' || messages.length === 0) return;
+    
+    const currentSessionId = sessionStorage.getItem('current_session_id') || 
+      new Date().getTime().toString();
+    
+    // Save current session ID if not exists
+    if (!sessionStorage.getItem('current_session_id')) {
+      sessionStorage.setItem('current_session_id', currentSessionId);
     }
+
+    // Get existing sessions
+    const sessions = ChatStorage.getAllSessions();
+    
+    // Update or add current session
+    const currentSession: ChatSession = {
+      id: currentSessionId,
+      timestamp: new Date().getTime(),
+      messages: messages,
+      preview: messages[0]?.content || 'Empty chat'
+    };
+
+    const updatedSessions = [currentSession, ...sessions.filter(s => s.id !== currentSessionId)]
+      .slice(0, MAX_SESSIONS);
+
+    localStorage.setItem(CHAT_SESSIONS_KEY, JSON.stringify(updatedSessions));
   },
-  
-  loadMessages: (): Message[] => {
+
+  getAllSessions: (): ChatSession[] => {
     if (typeof window === 'undefined') return [];
     try {
-      const saved = localStorage.getItem(CHAT_STORAGE_KEY);
+      const saved = localStorage.getItem(CHAT_SESSIONS_KEY);
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
     }
   },
-  
-  clearMessages: () => {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(CHAT_STORAGE_KEY);
-    }
+
+  getCurrentSession: (): Message[] => {
+    if (typeof window === 'undefined') return [];
+    const currentSessionId = sessionStorage.getItem('current_session_id');
+    if (!currentSessionId) return [];
+
+    const sessions = ChatStorage.getAllSessions();
+    return sessions.find(s => s.id === currentSessionId)?.messages || [];
+  },
+
+  clearCurrentSession: () => {
+    if (typeof window === 'undefined') return;
+    sessionStorage.removeItem('current_session_id');
+  },
+
+  clearAllSessions: () => {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem(CHAT_SESSIONS_KEY);
+    sessionStorage.removeItem('current_session_id');
   }
 };
 
@@ -423,20 +467,28 @@ export default function ChatPage() {
   useEffect(() => {
     if (!initialized.current) {
       if (window.performance && window.performance.navigation.type === 1) {
-        ChatStorage.clearMessages();
+        // On page refresh, clear current session
+        ChatStorage.clearCurrentSession();
         setMessages([]);
       } else {
-        const savedMessages = ChatStorage.loadMessages();
-        setMessages(savedMessages);
+        // Load current session if exists
+        const currentMessages = ChatStorage.getCurrentSession();
+        setMessages(currentMessages);
       }
+      
+      // Load all sessions for sidebar
+      const sessions = ChatStorage.getAllSessions();
+      setRecentSessions(sessions);
+      
       initialized.current = true;
     }
   }, []);
 
-  // Save messages when they change
+  // Update the messages save effect
   useEffect(() => {
-    if (initialized.current) {
-      ChatStorage.saveMessages(messages);
+    if (initialized.current && messages.length > 0) {
+      ChatStorage.saveCurrentSession(messages);
+      setRecentSessions(ChatStorage.getAllSessions());
     }
   }, [messages]);
 
@@ -711,16 +763,13 @@ export default function ChatPage() {
     fetchQuestions();
   }, []);
 
-  // Add effect to save messages when they change
-  useEffect(() => {
-    ChatStorage.saveMessages(messages);
-  }, [messages]);
-
   // Add a clear chat function (optional)
   const clearChat = () => {
     setMessages([]);
-    ChatStorage.clearMessages();
+    ChatStorage.clearCurrentSession();
   };
+
+  const [recentSessions, setRecentSessions] = useState<ChatSession[]>([]);
 
   return (
     <div className="flex fixed inset-0 overflow-hidden">
@@ -748,15 +797,26 @@ export default function ChatPage() {
             </div>
             
             <div className="space-y-2">
-              {messages.length > 0 ? (
-                messages
-                  .filter(msg => msg.role === 'user')
-                  .slice(-5)
-                  .map((msg, idx) => (
-                    <div key={idx} className="p-2 rounded hover:bg-blue-900 cursor-pointer truncate text-sm">
-                      {msg.content}
+              {recentSessions.length > 0 ? (
+                recentSessions.map((session) => (
+                  <div 
+                    key={session.id} 
+                    className="p-2 rounded hover:bg-blue-900 cursor-pointer truncate text-sm"
+                    onClick={() => {
+                      if (session.id === sessionStorage.getItem('current_session_id')) return;
+                      if (window.confirm('Load this chat session? Current chat will be cleared.')) {
+                        ChatStorage.clearCurrentSession();
+                        sessionStorage.setItem('current_session_id', session.id);
+                        setMessages(session.messages);
+                      }
+                    }}
+                  >
+                    <div className="text-gray-300 text-xs mb-1">
+                      {new Date(session.timestamp).toLocaleDateString()}
                     </div>
-                  ))
+                    {session.preview}
+                  </div>
+                ))
               ) : (
                 <div className="text-gray-400 text-sm">No recent chats</div>
               )}
@@ -777,21 +837,41 @@ export default function ChatPage() {
         {/* Header */}
         <div className="bg-white flex-none border-b shadow-sm">
           <div className="p-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-800">Chat Assistant</h2>
-                <p className="text-sm text-gray-500">Ask me anything about Connect America</p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+              <div className="flex items-center gap-4">
+                <button 
+                  className="lg:hidden p-2 hover:bg-gray-100 rounded-md"
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                >
+                  <Menu size={24} className="text-gray-700" />
+                </button>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-800">Chat Assistant</h2>
+                  <p className="text-sm text-gray-500">Ask me anything about Connect America</p>
+                </div>
               </div>
-              <button 
-                className="flex items-center gap-2 px-4 py-2 bg-[#0A0F5C] text-white rounded-md hover:bg-[#1a2070] transition-colors"
-                onClick={(e) => {
-                  e.preventDefault();
-                  window.location.href = '/documents';
-                }}
-              >
-                <FileText size={20} />
-                <span>Documents</span>
-              </button>
+              <div className="flex gap-2 justify-end">
+                <button 
+                  className="flex items-center gap-1 px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                  onClick={() => {
+                    ChatStorage.clearCurrentSession();
+                    setMessages([]);
+                  }}
+                >
+                  <Plus size={18} />
+                  <span className="text-sm">New Chat</span>
+                </button>
+                <button 
+                  className="flex items-center gap-1 px-3 py-2 bg-[#0A0F5C] text-white rounded-md hover:bg-[#1a2070] transition-colors"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.location.href = '/documents';
+                  }}
+                >
+                  <FileText size={18} />
+                  <span className="text-sm">Documents</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
