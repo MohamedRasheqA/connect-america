@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { FileText, Plus, ChevronDown } from 'lucide-react';
+import React from 'react';
 
 // Define the structure for chat messages
 interface Message {
@@ -9,6 +10,7 @@ interface Message {
   content: string;
   urls?: Array<{ url: string; content: string }>;
   isExpanded?: boolean;
+  isExpanding?: boolean;
 }
 
 // Define the structure for FAQ questions
@@ -297,7 +299,7 @@ const ChatMessage = ({
         message.role === 'assistant' 
           ? 'bg-white shadow-sm' 
           : 'bg-[#F5F7FF] shadow-md'
-      } py-4 sm:py-5 px-5 sm:px-6 rounded-lg mx-4 w-auto`}>
+      } py-4 sm:py-5 px-5 sm:px-6 rounded-lg mx-4`}>
         <div className="text-sm font-medium text-gray-600 mb-2">
           {message.role === 'assistant' ? 'AI Assistant' : 'You'}
         </div>
@@ -312,10 +314,22 @@ const ChatMessage = ({
         </div>
         {message.role === 'assistant' && !message.isExpanded && (
           <div className="mt-4">
-            <ExpandButton 
-              loading={loading}
-              onClick={() => handleExpandConversation(message, index)}
-            />
+            {message.isExpanding ? (
+              <div className="flex items-center gap-2 text-gray-500 text-sm">
+                <div className="animate-spin">⟳</div>
+                <div>Expanding conversation...</div>
+              </div>
+            ) : (
+              <button
+                onClick={() => handleExpandConversation(message, index)}
+                className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
+                Expand conversation
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -566,35 +580,51 @@ export default function ChatPage() {
   const handleExpandConversation = async (message: Message, index: number) => {
     if (loading) return;
     
-    setLoading(true);
-    setError(null);
-    
+    // Mark this specific message as expanding
+    setMessages(prev => {
+      const newMessages = [...prev];
+      newMessages[index] = { ...newMessages[index], isExpanding: true };
+      return newMessages;
+    });
+
     try {
       const expandedResponse = await sendMessageToAPI(message.content, true);
       setMessages(prev => {
         const newMessages = [...prev];
-        newMessages[index] = { ...expandedResponse, isExpanded: true };
-        ChatStorage.saveMessages(newMessages);
+        newMessages[index] = { 
+          ...expandedResponse, 
+          isExpanded: true,
+          isExpanding: false // Reset expanding state
+        };
         return newMessages;
       });
     } catch (err) {
       console.error('Expansion Error:', err);
-      setError('Failed to expand response. Please try again.');
-    } finally {
-      setLoading(false);
+      setError('Failed to expand conversation. Please try again.');
+      // Reset expanding state on error
+      setMessages(prev => {
+        const newMessages = [...prev];
+        newMessages[index] = { ...newMessages[index], isExpanding: false };
+        return newMessages;
+      });
     }
   };
 
-  // Handle form submission
+  // Add loadingMessageId to track which message is loading
+  const [loadingMessageId, setLoadingMessageId] = useState<number | null>(null);
+
+  // Update handleSubmit to use message-specific loading
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim() || loading) return;
 
+    const messageId = messages.length; // Use message index as ID
     const userMessage: Message = { role: 'user', content: inputValue };
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
     setError(null);
     setLoading(true);
+    setLoadingMessageId(messageId); // Set loading for this specific message
 
     try {
       const aiResponse = await sendMessageToAPI(inputValue, false);
@@ -604,18 +634,21 @@ export default function ChatPage() {
       setError('Failed to get response. Please try again.');
     } finally {
       setLoading(false);
+      setLoadingMessageId(null); // Clear loading state
     }
   };
 
-  // Handle clicking FAQ questions
+  // Update handleQuestionClick similarly
   const handleQuestionClick = async (question: string) => {
     if (loading) return;
     
-    setError(null);
-    setLoading(true);
-    
+    const messageId = messages.length;
     const userMessage: Message = { role: 'user', content: question };
     setMessages(prev => [...prev, userMessage]);
+    
+    setError(null);
+    setLoading(true);
+    setLoadingMessageId(messageId);
 
     try {
       const aiResponse = await sendMessageToAPI(question, false);
@@ -625,6 +658,7 @@ export default function ChatPage() {
       setError('Failed to get response. Please try again.');
     } finally {
       setLoading(false);
+      setLoadingMessageId(null);
     }
   };
 
@@ -767,24 +801,24 @@ export default function ChatPage() {
           <div className="container mx-auto max-w-5xl px-4 py-4">
             {/* Welcome Screen */}
             {messages.length === 0 && (
-              <div className="flex flex-col items-center gap-8 py-8">
-                <div className="text-center">
+              <div className="flex flex-col items-center gap-6 py-6">
+                <div className="text-center mb-4">
                   <p className="text-2xl font-semibold text-gray-800">👋 Welcome to Connect America Support</p>
                   <p className="text-base text-gray-600 mt-2">How can I help you today?</p>
                 </div>
                 
                 <div className="w-full max-w-4xl mx-auto">
-                  <h2 className="text-lg font-semibold text-gray-700 mb-4 px-4">Frequently Asked Questions</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 px-4">
+                  <h2 className="text-lg font-semibold text-gray-700 mb-3 px-4">Frequently Asked Questions</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 px-4 mb-6">
                     {questionsLoading ? (
                       // Loading skeleton for questions
                       Array(3).fill(null).map((_, index) => (
                         <div
                           key={index}
-                          className="bg-white p-6 rounded-xl shadow-sm
-                            border border-gray-200 animate-pulse h-32"
+                          className="bg-white p-4 rounded-lg shadow-sm
+                            border border-gray-200 animate-pulse h-24"
                         >
-                          <div className="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
+                          <div className="h-4 bg-gray-200 rounded w-3/4 mb-3"></div>
                           <div className="h-4 bg-gray-200 rounded w-1/2"></div>
                         </div>
                       ))
@@ -795,16 +829,16 @@ export default function ChatPage() {
                           key={index}
                           onClick={() => handleQuestionClick(q.question_text)}
                           disabled={loading}
-                          className="bg-white p-6 rounded-xl shadow-sm hover:shadow-md
+                          className="bg-white px-4 py-3 rounded-lg shadow-sm hover:shadow-md
                             border border-gray-200 text-left
                             hover:border-blue-500 transition-all
-                            group flex flex-col h-full w-full
-                            relative overflow-hidden
-                            disabled:cursor-not-allowed disabled:opacity-70"
+                            group relative
+                            disabled:cursor-not-allowed disabled:opacity-70
+                            min-h-[80px] w-full"
                         >
-                          <div className="flex items-start gap-3 relative z-10">
+                          <div className="flex items-start gap-2">
                             <span className="text-blue-600 shrink-0 mt-1 group-hover:text-blue-700">
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path 
                                   strokeLinecap="round" 
                                   strokeLinejoin="round" 
@@ -813,7 +847,7 @@ export default function ChatPage() {
                                 />
                               </svg>
                             </span>
-                            <span className="text-gray-700 group-hover:text-gray-900 font-medium">
+                            <span className="text-gray-700 group-hover:text-gray-900 font-medium text-sm line-clamp-3">
                               {q.question_text}
                             </span>
                           </div>
@@ -830,37 +864,37 @@ export default function ChatPage() {
               </div>
             )}
             
-            {/* Chat Messages */}
-            <div className="space-y-4">
+            {/* Chat Messages with improved spacing */}
+            <div className="space-y-6">
               {messages.map((message, index) => (
-                <ChatMessage
-                  key={index}
-                  message={message}
-                  index={index}
-                  loading={loading}
-                  handleExpandConversation={handleExpandConversation}
-                  getDocumentTitle={getDocumentTitle}
-                  handleDownload={handleDownload}
-                />
+                <React.Fragment key={index}>
+                  <ChatMessage
+                    message={message}
+                    index={index}
+                    loading={loading}
+                    handleExpandConversation={handleExpandConversation}
+                    getDocumentTitle={getDocumentTitle}
+                    handleDownload={handleDownload}
+                  />
+                  {loadingMessageId === index && (
+                    <div className="bg-white py-3 px-4 rounded-lg mx-4 my-6">
+                      <div className="flex items-center gap-2 text-gray-500 text-sm">
+                        <div className="animate-spin">⟳</div>
+                        <div>Processing your request...</div>
+                      </div>
+                    </div>
+                  )}
+                </React.Fragment>
               ))}
             </div>
             
-            {/* Loading and Error States */}
-            {loading && (
-              <div className="bg-white py-3 px-4 rounded-lg mx-4 mb-4">
-                <div className="flex items-center gap-2 text-gray-500 text-sm">
-                  <div className="animate-spin">⟳</div>
-                  <div>Processing your request...</div>
-                </div>
-              </div>
-            )}
-            
+            {/* Error message with proper spacing */}
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mx-4 mb-4">
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mx-4 my-6">
                 {error}
               </div>
             )}
-            <div ref={messagesEndRef} />
+            <div ref={messagesEndRef} className="h-4" />
           </div>
         </div>
 
