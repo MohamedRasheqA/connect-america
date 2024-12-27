@@ -168,149 +168,76 @@ const ExpandButton = ({
 // MarkdownChat component for rendering markdown content with consistent styling
 const MarkdownChat = ({ content }: { content: string }) => {
   return (
-    <div className="prose prose-slate max-w-none">
+    <div className="prose prose-slate max-w-none overflow-hidden">
       <style jsx global>{`
         /* Base Typography */
         .prose {
-          @apply text-base leading-relaxed;
+          @apply text-base leading-relaxed overflow-hidden;
         }
 
-        /* Main Headings */
-        .prose h1 {
-          @apply text-2xl font-bold text-gray-900;
-          margin-top: 1.5rem;
-          margin-bottom: 1.5rem;
-        }
-        
-        .prose h2 {
-          @apply text-xl font-semibold text-gray-800;
-          margin-top: 2rem;
-          margin-bottom: 1.25rem;
-        }
-
-        /* Numbered Lists */
-        .prose ol {
-          @apply list-none pl-0;
-          counter-reset: item;
-          margin-top: 1.5rem;
-          margin-bottom: 1.5rem;
-        }
-        
-        .prose ol > li {
-          @apply relative;
-          counter-increment: item;
-          padding-left: 0;
-          margin-bottom: 2rem;
-        }
-        
-        .prose ol > li:before {
-          @apply font-bold text-gray-900;
-          content: counter(item) ". ";
-          display: inline;
-          margin-right: 0.5rem;
-        }
-
-        /* Bullet Lists */
+        /* List Styles */
         .prose ul {
-          @apply list-none;
+          @apply list-none pl-0;
           margin-top: 0.75rem;
           margin-bottom: 0.75rem;
         }
         
         .prose ul > li {
           @apply relative;
-          padding-left: 2.5rem;
+          padding-left: 3rem;
           margin-bottom: 1.25rem;
-          line-height: 1.6;
         }
         
         .prose ul > li:before {
-          content: "•";
+          content: "•  ";
           @apply absolute text-gray-600;
-          left: 1rem;
+          left: 1.5rem;
           top: -1px;
           font-size: 1.25rem;
+          white-space: pre;
         }
 
-        /* List Item Content */
+        /* List Item Title Styles */
         .prose li strong {
-          @apply text-gray-800 font-semibold;
-          margin-right: 0.5rem;
+          @apply text-gray-800 font-semibold whitespace-nowrap inline-block mr-1;
         }
         
+        /* List Item Content */
         .prose li p {
-          @apply inline text-gray-700;
-          margin: 0;
-          line-height: 1.6;
-          margin-left: 0.25rem;
+          @apply inline-block text-gray-700 mt-2;
+          margin-left: 0;
         }
 
-        /* Paragraph Spacing */
-        .prose p {
-          @apply text-gray-700;
-          margin-top: 0.75rem;
-          margin-bottom: 0.75rem;
-          line-height: 1.6;
+        /* Ensure titles and colons stay together */
+        .prose li strong + span {
+          @apply whitespace-nowrap mr-1;
         }
 
-        /* Text Elements */
-        .prose strong {
-          @apply font-semibold text-gray-900;
+        /* Content wrapping */
+        .prose li > div {
+          @apply block;
         }
 
-        /* List Item Descriptions */
-        .prose li > p:first-of-type {
-          @apply inline-block;
-          margin-top: 0.25rem;
-        }
-
-        /* Nested List Spacing */
-        .prose li > ul {
-          margin-top: 0.75rem;
-          margin-bottom: 0.75rem;
-          padding-left: 1rem;
-        }
-
-        /* Section Spacing */
-        .prose > :first-child {
-          @apply mt-0;
-        }
-        
-        .prose > :last-child {
-          @apply mb-0;
-        }
-
-        /* Additional Spacing Refinements */
+        /* Additional spacing refinements */
         .prose li + li {
-          margin-top: 0.75rem;
+          @apply mt-4;
         }
 
-        .prose h2 + ul,
-        .prose h2 + ol {
-          margin-top: 1rem;
+        /* Table styles */
+        .prose table {
+          @apply w-full max-w-full overflow-x-auto block;
         }
 
-        /* Enhanced Readability */
-        .prose {
-          @apply text-gray-800;
-          line-height: 1.6;
-          font-size: 1rem;
+        /* Code block styles */
+        .prose pre {
+          @apply overflow-x-auto max-w-full;
+          white-space: pre-wrap;
+          word-wrap: break-word;
         }
 
-        /* List Item Title and Content Spacing */
-        .prose li strong + p {
-          margin-left: 0.5rem;
-        }
-
-        /* Bullet Point Alignment */
-        .prose ul > li {
-          display: flex;
-          align-items: flex-start;
-        }
-
-        .prose ul > li:before {
-          margin-right: 1rem;
-          margin-top: 0.25rem;
+        /* Image styles */
+        .prose img {
+          @apply max-w-full h-auto;
         }
       `}</style>
 
