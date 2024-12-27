@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   const controller = new AbortController();
 
   try {
-    const { message, is_expanded } = await request.json();
+    const { message, is_expanded, chat_history = [] } = await request.json();
 
     if (!message) {
       return NextResponse.json({
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
         },
         body: JSON.stringify({ 
           message,
-          chat_history: [], // Empty array as specified
+          chat_history,
           is_expanded: is_expanded || false 
         }),
         signal: controller.signal
