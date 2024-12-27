@@ -1,1031 +1,749 @@
-'use client';
+"use client"
+
 import { useState, useEffect, useRef } from 'react';
+import { Header } from "@/components/Header";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { MessageCircle, Send, ThumbsUp, ThumbsDown, Loader2, Activity, Pill, Plus, Check } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import toast from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
-import { FileText, Plus, ChevronDown, Menu } from 'lucide-react';
-import React from 'react';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
+import { Components } from 'react-markdown';
 
-// Define the structure for chat messages
-interface Message {
-  role: 'user' | 'assistant';
+interface ChatMessage {
+  id: string;
+  type: 'user' | 'bot';
   content: string;
-  urls?: Array<{ url: string; content: string }>;
-  isExpanded?: boolean;
-  isExpanding?: boolean;
+  timestamp: string;
+  feedback?: number;
+  sources?: { [key: string]: string };
 }
 
-// Define the structure for FAQ questions
-interface Question {
-  question_text: string;
+interface DetailedFeedbackProps {
+  messageContent: string;
+  messageId: string;
+  onClose: () => void;
 }
 
-// Define the structure for input options in the dropdown
-interface InputOption {
+interface Memory {
   id: string;
-  label: string;
-  description: string;
+  question: string;
+  question_summary: string;
+  timestamp: string;
+  distance: number;
 }
 
-// Add these constants at the top with other interfaces
-const CHAT_SESSIONS_KEY = 'connect_america_chat_sessions';
-const MAX_SESSIONS = 10;
-
-interface ChatSession {
-  id: string;
-  timestamp: number;
-  messages: Message[];
-  preview: string;
-}
-
-// Update the ChatStorage utility
-const ChatStorage = {
-  saveCurrentSession: (messages: Message[]) => {
-    if (typeof window === 'undefined' || messages.length === 0) return;
-    
-    const currentSessionId = sessionStorage.getItem('current_session_id') || 
-      new Date().getTime().toString();
-    
-    // Save current session ID if not exists
-    if (!sessionStorage.getItem('current_session_id')) {
-      sessionStorage.setItem('current_session_id', currentSessionId);
-    }
-
-    // Get existing sessions
-    const sessions = ChatStorage.getAllSessions();
-    
-    // Update or add current session
-    const currentSession: ChatSession = {
-      id: currentSessionId,
-      timestamp: new Date().getTime(),
-      messages: messages,
-      preview: messages[0]?.content || 'Empty chat'
-    };
-
-    const updatedSessions = [currentSession, ...sessions.filter(s => s.id !== currentSessionId)]
-      .slice(0, MAX_SESSIONS);
-
-    localStorage.setItem(CHAT_SESSIONS_KEY, JSON.stringify(updatedSessions));
-  },
-
-  getAllSessions: (): ChatSession[] => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const saved = localStorage.getItem(CHAT_SESSIONS_KEY);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  },
-
-  getCurrentSession: (): Message[] => {
-    if (typeof window === 'undefined') return [];
-    const currentSessionId = sessionStorage.getItem('current_session_id');
-    if (!currentSessionId) return [];
-
-    const sessions = ChatStorage.getAllSessions();
-    return sessions.find(s => s.id === currentSessionId)?.messages || [];
-  },
-
-  clearCurrentSession: () => {
-    if (typeof window === 'undefined') return;
-    sessionStorage.removeItem('current_session_id');
-  },
-
-  clearAllSessions: () => {
-    if (typeof window === 'undefined') return;
-    localStorage.removeItem(CHAT_SESSIONS_KEY);
-    sessionStorage.removeItem('current_session_id');
+type PersonaConfig = {
+  [key: string]: {
+    icon: JSX.Element;
+    color: string;
+    shortName: string;
   }
 };
 
-// Loading Spinner component
-const LoadingSpinner = () => (
-  <svg 
-    className="animate-spin h-4 w-4" 
-    xmlns="http://www.w3.org/2000/svg" 
-    fill="none" 
-    viewBox="0 0 24 24"
-  >
-    <circle 
-      className="opacity-25" 
-      cx="12" 
-      cy="12" 
-      r="10" 
-      stroke="currentColor" 
-      strokeWidth="4"
-    />
-    <path 
-      className="opacity-75" 
-      fill="currentColor" 
-      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-    />
-  </svg>
-);
-
-// Expand Icon component
-const ExpandIcon = () => (
-  <svg 
-    className="w-4 h-4" 
-    fill="none" 
-    stroke="currentColor" 
-    viewBox="0 0 24 24"
-  >
-    <path 
-      strokeLinecap="round" 
-      strokeLinejoin="round" 
-      strokeWidth="2" 
-      d="M19 9l-7 7-7-7"
-    />
-  </svg>
-);
-
-// ExpandButton component
-const ExpandButton = ({ 
-  loading, 
-  onClick 
-}: { 
-  loading: boolean;
-  onClick: () => void;
-}) => (
-  <button
-    onClick={onClick}
-    className="text-blue-600 hover:text-blue-800 font-medium flex items-center gap-2"
-    disabled={loading}
-  >
-    {loading ? (
-      <>
-        <LoadingSpinner />
-        <span>Expanding...</span>
-      </>
-    ) : (
-      <>
-        <ExpandIcon />
-        <span>Expand conversation</span>
-      </>
-    )}
-  </button>
-);
-
-// MarkdownChat component for rendering markdown content with consistent styling
-const MarkdownChat = ({ content }: { content: string }) => {
-  return (
-    <div className="prose prose-slate max-w-none w-full">
-      <style jsx global>{`
-        /* Base Typography */
-        .prose {
-          @apply text-base leading-relaxed w-full;
-        }
-
-        /* List Styles */
-        .prose ul {
-          @apply list-none pl-0 w-full;
-          margin-top: 0.75rem;
-          margin-bottom: 0.75rem;
-        }
-        
-        .prose ul > li {
-          @apply relative flex items-start;
-          padding-left: 1.5rem;
-          margin-bottom: 1.25rem;
-        }
-        
-        .prose ul > li:before {
-          content: "•";
-          @apply absolute text-gray-600;
-          left: 0;
-          margin-right: 0.5rem;
-          font-size: 1.25rem;
-          line-height: 1.5rem;
-        }
-
-        /* Title and content alignment */
-        .prose li strong {
-          @apply text-gray-800 font-semibold inline-flex items-center mr-1;
-        }
-        
-        .prose li p {
-          @apply text-gray-700 mt-0 ml-0;
-          display: inline;
-        }
-
-        /* Ensure proper wrapping */
-        .prose li > div {
-          @apply flex-1;
-        }
-      `}</style>
-
-      <ReactMarkdown className="prose">
-        {content}
-      </ReactMarkdown>
-    </div>
-  );
+const personaConfig: PersonaConfig = {
+  general_med: {
+    icon: <Activity className="h-4 w-4" />,
+    color: '#FE3301',
+    shortName: 'General'
+  },
+  glp1: {
+    icon: <Pill className="h-4 w-4" />,
+    color: '#00C48C',
+    shortName: 'GLP-1'
+  }
 };
 
-// ChatMessage component for displaying individual messages
-const ChatMessage = ({ 
-  message, 
-  index, 
-  loading, 
-  handleExpandConversation,
-  getDocumentTitle,
-  handleDownload 
-}: { 
-  message: Message;
-  index: number;
-  loading: boolean;
-  handleExpandConversation: (message: Message, index: number) => Promise<void>;
-  getDocumentTitle: (url: string) => string;
-  handleDownload: (url: string) => Promise<void>;
-}) => {
+interface MessageContentProps {
+  content: string;
+  sources?: { [key: string]: string };
+}
+
+const MessageContent = ({ content, sources = {} }: MessageContentProps) => {
   return (
-    <div className="mb-2 w-full">
-      <div className={`${
-        message.role === 'assistant' 
-          ? 'bg-white shadow-sm' 
-          : 'bg-[#F5F7FF] shadow-md'
-      } py-4 sm:py-5 px-4 sm:px-6 rounded-lg mx-2 sm:mx-4 w-full`}>
-        <div className="text-sm font-medium text-gray-600 mb-2">
-          {message.role === 'assistant' ? 'AI Assistant' : 'You'}
-        </div>
-        <div className="text-gray-800">
-          {message.role === 'assistant' ? (
-            <MarkdownChat content={message.content} />
+    <ReactMarkdown
+      components={{
+        // Style paragraphs
+        p: ({ children }) => <p className="mb-4 last:mb-0">{children}</p>,
+        
+        // Style headings
+        h1: ({ children }) => <h1 className="text-2xl font-bold mb-4">{children}</h1>,
+        h2: ({ children }) => <h2 className="text-xl font-bold mb-3">{children}</h2>,
+        h3: ({ children }) => <h3 className="text-lg font-bold mb-2">{children}</h3>,
+        
+        // Style lists
+        ul: ({ children }) => <ul className="list-disc list-inside mb-4">{children}</ul>,
+        ol: ({ children }) => <ol className="list-decimal list-inside mb-4">{children}</ol>,
+        
+        // Style code blocks and inline code
+        code: ({ node, inline, className, children, ...props }: {
+          node?: any;
+          inline?: boolean;
+          className?: string;
+          children?: React.ReactNode;
+          [key: string]: any;
+        }) => {
+          const match = /language-(\w+)/.exec(className || '');
+          return !inline && match ? (
+            <SyntaxHighlighter
+              style={oneDark}
+              language={match[1]}
+              PreTag="div"
+              className="rounded-md mb-4"
+              {...props}
+            >
+              {String(children).replace(/\n$/, '')}
+            </SyntaxHighlighter>
           ) : (
-            <div className="text-gray-800">
-              {message.content}
-            </div>
-          )}
-        </div>
-        {message.role === 'assistant' && !message.isExpanded && (
-          <div className="mt-4">
-            {message.isExpanding ? (
-              <div className="flex items-center gap-2 text-gray-500 text-sm">
-                <div className="animate-spin">⟳</div>
-                <div>Expanding conversation...</div>
-              </div>
-            ) : (
-              <button
-                onClick={() => handleExpandConversation(message, index)}
-                className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                </svg>
-                Expand conversation
-              </button>
-            )}
+            <code className="bg-gray-100 rounded px-1 py-0.5" {...props}>
+              {children}
+            </code>
+          );
+        },
+        
+        // Style links
+        a: ({ href, children }) => (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[#FE3301] hover:underline"
+          >
+            {children}
+          </a>
+        ),
+        
+        // Style blockquotes
+        blockquote: ({ children }) => (
+          <blockquote className="border-l-4 border-gray-200 pl-4 italic mb-4">
+            {children}
+          </blockquote>
+        ),
+        
+        // Style tables
+        table: ({ children }) => (
+          <div className="overflow-x-auto mb-4">
+            <table className="min-w-full divide-y divide-gray-200">
+              {children}
+            </table>
           </div>
-        )}
-      </div>
-      {message.urls && message.urls.length > 0 && (
-        <References 
-          urls={message.urls} 
-          getDocumentTitle={getDocumentTitle} 
-          handleDownload={handleDownload} 
-        />
-      )}
-    </div>
+        ),
+        th: ({ children }) => (
+          <th className="px-4 py-2 bg-gray-50 text-left text-sm font-medium text-gray-500">
+            {children}
+          </th>
+        ),
+        td: ({ children }) => (
+          <td className="px-4 py-2 text-sm text-gray-900">
+            {children}
+          </td>
+        ),
+      }}
+    >
+      {content}
+    </ReactMarkdown>
   );
 };
 
-// References component for displaying document references
-const References = ({ 
-  urls, 
-  getDocumentTitle,
-  handleDownload 
-}: { 
-  urls: Array<{ url: string; content: string }>;
-  getDocumentTitle: (url: string) => string;
-  handleDownload: (url: string) => Promise<void>;
-}) => {
-  if (!urls || urls.length === 0) return null;
-
-  return (
-    <div className="mx-4 mt-3 mb-4">
-      <h2 className="text-xl font-semibold text-gray-800 bg-white px-4 py-2 rounded-lg shadow-sm flex items-center gap-2 mb-3">
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-        Referenced Documents
-      </h2>
-      <div className="space-y-3">
-        {urls.map(({ url }, index) => (
-          <div key={index} className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 rounded-lg border border-gray-200 hover:border-blue-500 transition-colors bg-white shadow-sm hover:shadow-md">
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <span className="text-blue-700 font-semibold">#{index + 1}</span>
-                <h3 className="text-gray-900 text-lg font-medium">
-                  {getDocumentTitle(url)}
-                </h3>
-              </div>
-              <p className="text-sm text-gray-500 mt-1">
-                {url.includes('.pdf') ? 'PDF Document' : 
-                 url.includes('.doc') ? 'Word Document' : 
-                 'Document'}
-              </p>
-            </div>
-            <div className="flex gap-2 w-full sm:w-auto">
-              <a 
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors flex-1 sm:flex-initial justify-center"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-                View
-              </a>
-              <button 
-                onClick={() => handleDownload(url)}
-                className="flex items-center gap-2 px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 transition-colors flex-1 sm:flex-initial justify-center"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Download
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+// Global state for session maintenance
+const globalState = {
+  messages: [] as ChatMessage[],
+  selectedPersona: 'general_med',
+  similarQuestions: [] as Memory[],
+  isProcessing: false,
+  sessionActive: false,
+  isLoading: false,
+  isTyping: false,
+  currentRequest: null as AbortController | null,
+  activeQuery: null as string | null
 };
 
-export default function ChatPage() {
-  // Initialize with empty array
-  const [messages, setMessages] = useState<Message[]>([]);
-  const initialized = useRef(false);
+const DetailedFeedback = ({ messageContent, messageId, onClose }: DetailedFeedbackProps) => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [userFeedback, setUserFeedback] = useState('');
 
-  // Load messages and handle refresh in useEffect
-  useEffect(() => {
-    if (!initialized.current) {
-      if (window.performance && window.performance.navigation.type === 1) {
-        // On page refresh, clear current session
-        ChatStorage.clearCurrentSession();
-        setMessages([]);
-      } else {
-        // Load current session if exists
-        const currentMessages = ChatStorage.getCurrentSession();
-        setMessages(currentMessages);
+  const handleSubmitFeedback = async () => {
+    if (!userFeedback.trim()) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messageId,
+          feedback: 0,
+          messageContent,
+          userSuggestion: userFeedback,
+          timestamp: new Date().toISOString()
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to store feedback');
       }
-      
-      // Load all sessions for sidebar
-      const sessions = ChatStorage.getAllSessions();
-      setRecentSessions(sessions);
-      
-      initialized.current = true;
-    }
-  }, []);
 
-  // Update the messages save effect
-  useEffect(() => {
-    if (initialized.current && messages.length > 0) {
-      ChatStorage.saveCurrentSession(messages);
-      setRecentSessions(ChatStorage.getAllSessions());
-    }
-  }, [messages]);
-
-  // State management for chat functionality
-  const [inputValue, setInputValue] = useState('');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [textareaHeight, setTextareaHeight] = useState('60px');
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [selectedOption, setSelectedOption] = useState<InputOption>({
-    id: 'default',
-    label: 'Default',
-    description: 'Standard chat input'
-  });
-  
-  // References for DOM elements
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  
-  // State for FAQ questions
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [questionsLoading, setQuestionsLoading] = useState(true);
-
-  // Available input options for the dropdown
-  const inputOptions: InputOption[] = [
-    {
-      id: 'default',
-      label: 'Default',
-      description: 'Standard chat input'
-    },
-    {
-      id: 'advice',
-      label: 'Advice',
-      description: 'Get advice on specific topics'
-    }
-  ];
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsDropdownOpen(false);
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleOptionSelect = (option: InputOption) => {
-    setSelectedOption(option);
-    setIsDropdownOpen(false);
-    if (textareaRef.current) {
-      textareaRef.current.focus();
+      toast.success('Thank you for your feedback!');
+      onClose();
+    } catch (error) {
+      console.error('Error storing feedback:', error);
+      toast.error('Failed to save feedback');
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>We'd Love Your Feedback</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-4">
+            <label className="block text-gray-700">
+              What could we do better?
+              <textarea 
+                value={userFeedback}
+                onChange={(e) => setUserFeedback(e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-[#FE3301] focus:ring-[#FE3301] sm:text-sm min-h-[100px] p-2"
+                placeholder="Please share your suggestions for improvement..."
+              />
+            </label>
+            <div className="flex justify-end gap-2">
+              <Button 
+                variant="outline" 
+                onClick={onClose}
+                disabled={isLoading}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSubmitFeedback}
+                disabled={isLoading || !userFeedback.trim()}
+                className="bg-[#FE3301] text-white hover:bg-[#FE3301]/90"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  'Submit Feedback'
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default function Chat() {
+  const [messages, setMessages] = useState<ChatMessage[]>(globalState.messages);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(globalState.isLoading);
+  const [isTyping, setIsTyping] = useState(globalState.isTyping);
+  const [showDetailedFeedback, setShowDetailedFeedback] = useState<string | null>(null);
+  const [similarQuestions, setSimilarQuestions] = useState<Memory[]>(globalState.similarQuestions);
+  const [selectedPersona, setSelectedPersona] = useState(globalState.selectedPersona);
+  const [title, setTitle] = useState('Medication Assistant Discussion');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const processingRef = useRef<boolean>(false);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const chatContainer = messagesEndRef.current?.closest('.chat-container');
+    if (chatContainer) {
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
   };
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        setMessages(globalState.messages);
+        setSimilarQuestions(globalState.similarQuestions);
+        setSelectedPersona(globalState.selectedPersona);
+        
+        if (globalState.activeQuery || globalState.currentRequest) {
+          setIsLoading(true);
+          setIsTyping(true);
+          globalState.isLoading = true;
+          globalState.isTyping = true;
+        }
+
+        if (!globalState.isProcessing) {
+          processingRef.current = false;
+          setIsLoading(false);
+          setIsTyping(false);
+          globalState.isLoading = false;
+          globalState.isTyping = false;
+        }
+      }
+    };
+
+    // Initial check for ongoing requests
+    if (globalState.activeQuery || globalState.currentRequest) {
+      setIsLoading(true);
+      setIsTyping(true);
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
+    };
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, isTyping, isLoading]);
 
-  // Function to format document titles
-  const getDocumentTitle = (url: string) => {
-    const filename = url.split('/').pop() || '';
-    return filename
-      .replace(/[-_]/g, ' ')
-      .replace(/\.[^/.]+$/, '')
-      .split(' ')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-  };
-
-  // Handle document downloads
-  const handleDownload = async (url: string) => {
-    let downloadUrl: string | undefined;
+  const storeMemory = async (question: string) => {
     try {
-      const response = await fetch('/api/download', {
+      const response = await fetch('/api/memory', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ question }),
       });
 
-      if (!response.ok) throw new Error('Download failed');
+      if (!response.ok) {
+        throw new Error('Failed to store memory');
+      }
 
-      const blob = await response.blob();
-      downloadUrl = window.URL.createObjectURL(blob);
-      const filename = url.split('/').pop() || 'document';
-
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      return await response.json();
     } catch (error) {
-      console.error('Download failed:', error);
-      throw new Error('Failed to download the file. Please try again.');
-    } finally {
-      if (downloadUrl) window.URL.revokeObjectURL(downloadUrl);
+      console.error('Error storing memory:', error);
     }
   };
 
-  // Send messages to the API
-  const sendMessageToAPI = async (message: string, isExpanded: boolean = false) => {
+  const getSimilarQuestions = async (query: string) => {
     try {
+      const response = await fetch(`/api/memory?query=${encodeURIComponent(query)}`);
+      if (!response.ok) throw new Error('Failed to fetch similar questions');
+      
+      const data = await response.json();
+      if (data.status === 'success') {
+        setSimilarQuestions(data.memories);
+        globalState.similarQuestions = data.memories;
+      }
+    } catch (error) {
+      console.error('Error fetching similar questions:', error);
+    }
+  };
+
+  const handleFeedback = async (index: number, value: number) => {
+    const message = messages[index];
+    if (!message || message.type !== 'bot') return;
+
+    if (value === 0) {
+      setShowDetailedFeedback(message.id);
+      return;
+    }
+
+    const updatedMessages = messages.map((msg, i) => {
+      if (i === index) {
+        return { ...msg, feedback: value };
+      }
+      return msg;
+    });
+
+    setMessages(updatedMessages);
+    globalState.messages = updatedMessages;
+
+    try {
+      const response = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messageId: message.id,
+          feedback: value,
+          messageContent: message.content,
+          timestamp: message.timestamp
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to store feedback');
+      }
+
+      toast.success('Feedback saved');
+    } catch (error) {
+      console.error('Error storing feedback:', error);
+      
+      const revertedMessages = messages.map((msg, i) => {
+        if (i === index) {
+          return { ...msg, feedback: undefined };
+        }
+        return msg;
+      });
+
+      setMessages(revertedMessages);
+      globalState.messages = revertedMessages;
+
+      toast.error('Failed to save feedback');
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || processingRef.current) return;
+
+    let timeoutId: NodeJS.Timeout | undefined;
+    const abortController = new AbortController();
+    globalState.currentRequest = abortController;
+    globalState.activeQuery = input;
+
+    processingRef.current = true;
+    globalState.isProcessing = true;
+    setIsLoading(true);
+    setIsTyping(true);
+    globalState.isLoading = true;
+    globalState.isTyping = true;
+
+    const userMessage: ChatMessage = {
+      id: crypto.randomUUID(),
+      type: 'user',
+      content: input,
+      timestamp: new Date().toISOString()
+    };
+
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
+    globalState.messages = updatedMessages;
+
+    setInput('');
+
+    try {
+      await Promise.all([
+        storeMemory(input),
+        getSimilarQuestions(input)
+      ]);
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          message,
-          is_expanded: isExpanded,
-          input_type: selectedOption.id
+          query: input,
+          similarQuestions: similarQuestions,
+          persona: selectedPersona
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to send message');
-      }
-
-      const data = await response.json();
-      return {
-        ...data,
-        isExpanded
-      };
-    } catch (err) {
-      console.error('Error sending message:', err);
-      throw err;
-    }
-  };
-
-  // Handle expanding conversation
-  const handleExpandConversation = async (message: Message, index: number) => {
-    if (loading) return;
-    
-    // Mark this specific message as expanding
-    setMessages(prev => {
-      const newMessages = [...prev];
-      newMessages[index] = { ...newMessages[index], isExpanding: true };
-      return newMessages;
-    });
-
-    try {
-      const expandedResponse = await sendMessageToAPI(message.content, true);
-      setMessages(prev => {
-        const newMessages = [...prev];
-        newMessages[index] = { 
-          ...expandedResponse, 
-          isExpanded: true,
-          isExpanding: false // Reset expanding state
-        };
-        return newMessages;
-      });
-    } catch (err) {
-      console.error('Expansion Error:', err);
-      setError('Failed to expand conversation. Please try again.');
-      // Reset expanding state on error
-      setMessages(prev => {
-        const newMessages = [...prev];
-        newMessages[index] = { ...newMessages[index], isExpanding: false };
-        return newMessages;
-      });
-    }
-  };
-
-  // Add loadingMessageId to track which message is loading
-  const [loadingMessageId, setLoadingMessageId] = useState<number | null>(null);
-
-  // Update handleSubmit to use message-specific loading
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputValue.trim() || loading) return;
-
-    const messageId = messages.length; // Use message index as ID
-    const userMessage: Message = { role: 'user', content: inputValue };
-    setMessages(prev => [...prev, userMessage]);
-    setInputValue('');
-    setError(null);
-    setLoading(true);
-    setLoadingMessageId(messageId); // Set loading for this specific message
-
-    const chatHistory = messages.map(msg => ({
-      role: msg.role,
-      content: msg.content
-    }));
-    
-    try {
-      const aiResponse = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: inputValue,
-          chat_history: chatHistory,
-          is_expanded: false
-        })
-      });
-
-      if (!aiResponse.ok) {
         throw new Error('Failed to get response');
       }
 
-      const data = await aiResponse.json();
-      setMessages(prev => [...prev, { ...data, isExpanded: false }]);
-    } catch (err) {
-      console.error('Chat Error:', err);
-      setError('Failed to get response. Please try again.');
-    } finally {
-      setLoading(false);
-      setLoadingMessageId(null); // Clear loading state
-    }
-  };
-
-  // Update handleQuestionClick similarly
-  const handleQuestionClick = async (question: string) => {
-    if (loading) return;
-    
-    const messageId = messages.length;
-    const userMessage: Message = { role: 'user', content: question };
-    setMessages(prev => [...prev, userMessage]);
-    
-    setError(null);
-    setLoading(true);
-    setLoadingMessageId(messageId);
-
-    try {
-      const aiResponse = await sendMessageToAPI(question, false);
-      setMessages(prev => [...prev, { ...aiResponse, isExpanded: false }]);
-    } catch (err) {
-      console.error('FAQ Question Error:', err);
-      setError('Failed to get response. Please try again.');
-    } finally {
-      setLoading(false);
-      setLoadingMessageId(null);
-    }
-  };
-
-  // Handle textarea height adjustments
-  const updateTextareaHeight = (element: HTMLTextAreaElement) => {
-    const minHeight = 60;
-    const maxHeight = 150;
-    
-    element.style.height = 'auto';
-    
-    const newHeight = Math.min(Math.max(element.scrollHeight, minHeight), maxHeight);
-    
-    element.style.height = `${newHeight}px`;
-    setTextareaHeight(`${newHeight}px`);
-  };
-
-  // Initialize textarea
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.focus();
-      updateTextareaHeight(textareaRef.current);
-    }
-  }, []);
-
-  // Fetch FAQ questions
-  useEffect(() => {
-    const fetchQuestions = async () => {
-      try {
-        const response = await fetch('/api/questions');
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => null);
-          throw new Error(
-
-          );
-        }
-        const data = await response.json();
-        if (!Array.isArray(data)) {
-          throw new Error('Invalid response format: expected an array of questions');
-        }
-        setQuestions(data);
-      } catch (err) {
-        console.error('Error fetching questions:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load suggested questions');
-        setQuestions([]);
-      } finally {
-        setQuestionsLoading(false);
+      const data = await response.json();
+      
+      if (data.status === 'success' && data.response) {
+        if (data.title) setTitle(data.title);
+        const botMessage: ChatMessage = {
+          id: crypto.randomUUID(),
+          type: 'bot',
+          content: data.response,
+          timestamp: new Date().toISOString(),
+        };
+        console.log("title", data.title);
+        const newMessages = [...updatedMessages, botMessage];
+        setMessages(newMessages);
+        globalState.messages = newMessages;
       }
-    };
+    } catch (error) {
+      const errorMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        type: 'bot',
+        content: 'Sorry, there was an error processing your request.',
+        timestamp: new Date().toISOString()
+      };
 
-    fetchQuestions();
-  }, []);
-
-  // Add a clear chat function (optional)
-  const clearChat = () => {
-    setMessages([]);
-    ChatStorage.clearCurrentSession();
+      const newMessages = [...updatedMessages, errorMessage];
+      setMessages(newMessages);
+      globalState.messages = newMessages;
+    } finally {
+      if (globalState.currentRequest === abortController) {
+        setIsLoading(false);
+        setIsTyping(false);
+        globalState.isLoading = false;
+        globalState.isTyping = false;
+        processingRef.current = false;
+        globalState.isProcessing = false;
+        globalState.currentRequest = null;
+        globalState.activeQuery = null;
+      }
+    }
   };
-
-  const [recentSessions, setRecentSessions] = useState<ChatSession[]>([]);
 
   return (
-    <div className="flex fixed inset-0 overflow-hidden">
-      {/* Left Sidebar */}
-      <div className={`
-        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-        lg:translate-x-0
-        fixed lg:relative
-        w-64 flex-none
-        bg-[#0A0F5C] text-white
-        transition-transform duration-300 ease-in-out
-        z-40 lg:z-auto
-        h-full
-      `}>
-        <div className="p-4 flex flex-col h-full">
-          <div className="mb-8 hidden lg:block">
-            <h1 className="text-xl font-bold">ConnectAmerica</h1>
-            <p className="text-sm text-gray-300 mt-2">AI Support Assistant</p>
-          </div>
-          
-          <nav className="flex-1 overflow-y-auto">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-teal-400">💬</span>
-              <span className="text-teal-400 font-semibold">Recent Chats</span>
-            </div>
-            
-            <div className="space-y-2">
-              {recentSessions.length > 0 ? (
-                recentSessions.map((session) => (
+    <div className="min-h-screen bg-gradient-to-t from-[#FFF5F2] via-[#FFF9F7] to-white">
+      <Header />
+      <main className="container mx-auto px-4 py-8">
+        <h1 className="text-3xl font-bold text-center mb-8 text-[#FE3301]">
+          Medication Assistant
+        </h1>
+        
+        <Card className="max-w-4xl mx-auto bg-white/80 backdrop-blur-sm shadow-lg">
+          <CardHeader className="border-b">
+            <CardTitle className="flex items-center gap-2 text-[#FE3301]">
+              <MessageCircle className="h-6 w-6" />
+              {title}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex flex-col h-[calc(100vh-20rem)]">
+              <div className="flex-1 overflow-y-auto pr-2 space-y-4 chat-container scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+                {messages.map((message, index) => (
                   <div 
-                    key={session.id} 
-                    className="p-2 rounded hover:bg-blue-900 cursor-pointer truncate text-sm"
-                    onClick={() => {
-                      if (session.id === sessionStorage.getItem('current_session_id')) return;
-                      if (window.confirm('Load this chat session? Current chat will be cleared.')) {
-                        ChatStorage.clearCurrentSession();
-                        sessionStorage.setItem('current_session_id', session.id);
-                        setMessages(session.messages);
-                      }
-                    }}
+                    key={message.id} 
+                    className="w-full"
                   >
-                    <div className="text-gray-300 text-xs mb-1">
-                      {new Date(session.timestamp).toLocaleDateString()}
-                    </div>
-                    {session.preview}
-                  </div>
-                ))
-              ) : (
-                <div className="text-gray-400 text-sm">No recent chats</div>
-              )}
-            </div>
-          </nav>
-
-          <div className="mt-auto pt-4 border-t border-gray-700">
-            <div className="flex items-center gap-2 text-sm text-gray-300 hover:text-white cursor-pointer">
-              <span>⚙️</span>
-              <span>Settings</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col w-full overflow-hidden">
-        {/* Header */}
-        <div className="bg-white flex-none border-b shadow-sm">
-          <div className="p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
-              <div className="flex items-center gap-4">
-                <button 
-                  className="lg:hidden p-2 hover:bg-gray-100 rounded-md"
-                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                >
-                  <Menu size={24} className="text-gray-700" />
-                </button>
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-800">Chat Assistant</h2>
-                  <p className="text-sm text-gray-500">Ask me anything about Connect America</p>
-                </div>
-              </div>
-              <div className="flex gap-2 justify-end">
-                <button 
-                  className="flex items-center gap-1 px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-                  onClick={() => {
-                    ChatStorage.clearCurrentSession();
-                    setMessages([]);
-                  }}
-                >
-                  <Plus size={18} />
-                  <span className="text-sm">New Chat</span>
-                </button>
-                <button 
-                  className="flex items-center gap-1 px-3 py-2 bg-[#0A0F5C] text-white rounded-md hover:bg-[#1a2070] transition-colors"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    window.location.href = '/documents';
-                  }}
-                >
-                  <FileText size={18} />
-                  <span className="text-sm">Documents</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Messages Area */}
-        <div className="flex-1 bg-gray-50 overflow-y-auto w-full">
-          <div className="w-full px-4 py-4">
-            {/* Welcome Screen */}
-            {messages.length === 0 && (
-              <div className="flex flex-col items-center gap-6 py-6">
-                <div className="text-center mb-4">
-                  <p className="text-2xl font-semibold text-gray-800">👋 Welcome to Connect America Support</p>
-                  <p className="text-base text-gray-600 mt-2">How can I help you today?</p>
-                </div>
-                
-                <div className="w-full max-w-4xl mx-auto">
-                  <h2 className="text-lg font-semibold text-gray-700 mb-3 px-4">Frequently Asked Questions</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 px-4 mb-6">
-                    {questionsLoading ? (
-                      // Loading skeleton for questions
-                      Array(3).fill(null).map((_, index) => (
-                        <div
-                          key={index}
-                          className="bg-white p-4 rounded-lg shadow-sm
-                            border border-gray-200 animate-pulse h-24"
-                        >
-                          <div className="h-4 bg-gray-200 rounded w-3/4 mb-3"></div>
-                          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                    <div className="w-full">
+                      {message.type === 'bot' ? (
+                        <div className="text-sm text-gray-600 mb-1">AI Assistant</div>
+                      ) : (
+                        <div className="text-sm text-gray-600 mb-1">You</div>
+                      )}
+                      <div 
+                        className={`rounded-lg p-4 ${
+                          message.type === 'user' 
+                            ? 'bg-gradient-to-r from-[#FFE5E0] to-[#FFE9E5] border border-[#FE330125]' 
+                            : 'bg-white border border-gray-100'
+                        }`}
+                      >
+                        <MessageContent content={message.content} sources={message.sources} />
+                      </div>
+                      <div className="flex items-center justify-between mt-1">
+                        <div className="text-xs text-gray-500">
+                          {new Date(message.timestamp).toLocaleTimeString()}
                         </div>
-                      ))
-                    ) : (
-                      // Render actual questions when loaded
-                      questions.map((q, index) => (
-                        <button
-                          key={index}
-                          onClick={() => handleQuestionClick(q.question_text)}
-                          disabled={loading}
-                          className="bg-white px-4 py-3 rounded-lg shadow-sm hover:shadow-md
-                            border border-gray-200 text-left
-                            hover:border-blue-500 transition-all
-                            group relative
-                            disabled:cursor-not-allowed disabled:opacity-70
-                            min-h-[80px] w-full"
-                        >
-                          <div className="flex items-start gap-2">
-                            <span className="text-blue-600 shrink-0 mt-1 group-hover:text-blue-700">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path 
-                                  strokeLinecap="round" 
-                                  strokeLinejoin="round" 
-                                  strokeWidth="2" 
-                                  d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                                />
-                              </svg>
-                            </span>
-                            <span className="text-gray-700 group-hover:text-gray-900 font-medium text-sm line-clamp-3">
-                              {q.question_text}
-                            </span>
+                        {message.type === 'bot' && (
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleFeedback(index, 1)}
+                              className={`p-2 hover:bg-green-100 ${
+                                message.feedback === 1 ? 'bg-green-100' : ''
+                              }`}
+                            >
+                              <ThumbsUp className={`h-4 w-4 ${
+                                message.feedback === 1 ? 'text-green-600' : 'text-gray-500'
+                              }`} />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleFeedback(index, 0)}
+                              className={`p-2 hover:bg-red-100 ${
+                                message.feedback === 0 ? 'bg-red-100' : ''
+                              }`}
+                            >
+                              <ThumbsDown className={`h-4 w-4 ${
+                                message.feedback === 0 ? 'text-red-600' : 'text-gray-500'
+                              }`} />
+                            </Button>
                           </div>
-                          {loading && (
-                            <div className="absolute inset-0 bg-white bg-opacity-50 flex items-center justify-center">
-                              <div className="animate-spin text-blue-600 text-xl">⟳</div>
-                            </div>
-                          )}
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {/* Chat Messages with improved spacing */}
-            <div className="space-y-6 w-full">
-              {messages.map((message, index) => (
-                <React.Fragment key={index}>
-                  <ChatMessage
-                    message={message}
-                    index={index}
-                    loading={loading}
-                    handleExpandConversation={handleExpandConversation}
-                    getDocumentTitle={getDocumentTitle}
-                    handleDownload={handleDownload}
-                  />
-                  {loadingMessageId === index && (
-                    <div className="bg-white py-3 px-4 rounded-lg mx-4 my-6">
-                      <div className="flex items-center gap-2 text-gray-500 text-sm">
-                        <div className="animate-spin">⟳</div>
-                        <div>Processing your request...</div>
+                        )}
                       </div>
                     </div>
-                  )}
-                </React.Fragment>
-              ))}
-            </div>
-            
-            {/* Error message with proper spacing */}
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mx-4 my-6">
-                {error}
+                  </div>
+                ))}
+                {(isTyping || isLoading) && (
+                  <div className="w-full">
+                    <div className="bg-white border border-gray-100 rounded-lg p-4">
+                      <div className="flex space-x-2 justify-center items-center h-6">
+                        <span className="sr-only">Loading...</span>
+                        <div className="h-2 w-2 bg-[#FE3301] rounded-full animate-bounce"></div>
+                        <div className="h-2 w-2 bg-[#FE3301] rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                        <div className="h-2 w-2 bg-[#FE3301] rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
               </div>
-            )}
-            <div ref={messagesEndRef} className="h-4" />
-          </div>
-        </div>
-
-        {/* Input Area */}
-        <div className="bg-[#F0F2FF] flex-none">
-          <form 
-            ref={formRef}
-            onSubmit={handleSubmit} 
-            className="flex items-center gap-4 p-4"
-          >
-            {/* Input Type Selector */}
-            <div className="relative flex-none" ref={dropdownRef}>
-              <button
-                type="button"
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="flex items-center justify-center h-12 w-12 bg-white rounded-lg
-                  hover:bg-gray-50 transition-colors border border-gray-200
-                  text-gray-600 hover:text-gray-800"
-              >
-                <Plus className="w-5 h-5" />
-              </button>
-
-              {isDropdownOpen && (
-                <div className="absolute bottom-full mb-2 left-0 w-48 bg-white rounded-lg shadow-lg
-                  border border-gray-200 py-2 z-50">
-                  {inputOptions.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => handleOptionSelect(option)}
-                      className={`w-full px-4 py-2 text-left hover:bg-gray-50
-                        ${selectedOption.id === option.id ? 'bg-gray-50' : ''}
-                        flex flex-col gap-1`}
-                    >
-                      <span className="font-medium text-gray-800">{option.label}</span>
-                      <span className="text-xs text-gray-500">{option.description}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Message Input */}
-            <div className="flex-1 relative">
-              <textarea 
-                ref={textareaRef}
-                className="w-full bg-[#F5F7FF] focus:bg-white
-                  text-gray-800 text-base font-medium placeholder-gray-400
-                  border-0 outline-none resize-none 
-                  py-4 px-6
-                  rounded-lg
-                  overflow-auto transition-all duration-200
-                  focus:ring-2 focus:ring-blue-500
-                  cursor-text
-                  leading-normal"
-                style={{
-                  height: textareaHeight,
-                  maxHeight: '150px',
-                  minHeight: '60px',
-                }}
-                placeholder={selectedOption.id === 'advice' 
-                  ? "Ask for advice..."
-                  : "Type your message here..."}
-                value={inputValue}
-                onChange={(e) => {
-                  e.preventDefault();
-                  const target = e.target;
-                  setInputValue(target.value);
-                  updateTextareaHeight(target);
-                }}
-                onFocus={(e) => {
-                  updateTextareaHeight(e.target);
-                }}
-                onClick={(e) => {
-                  e.currentTarget.focus();
-                }}
-                disabled={loading}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    if (inputValue.trim()) {
-                      formRef.current?.requestSubmit();
-                    }
-                  }
-                }}
-                autoComplete="off"
-                spellCheck="false"
-              />
-            </div>
-
-            {/* Send Button */}
-            <button 
-              type="submit"
-              disabled={loading || !inputValue.trim()}
-              className="flex-none bg-[#0A0F5C] text-white 
-                p-2.5
-                rounded-lg hover:bg-blue-900 
-                transition-colors 
-                disabled:opacity-50 
-                disabled:cursor-not-allowed
-                flex items-center justify-center
-                h-12 w-12"
-            >
-              {loading ? (
-                <span className="animate-spin text-xl">⟳</span>
-              ) : (
-                <svg 
-                  xmlns="http://www.w3.org/2000/svg" 
-                  viewBox="0 0 24 24" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  className="w-5 h-5"
-                >
-                  <path 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                    strokeWidth={2} 
-                    d="M13.5 19l7-7-7-7M20.5 12H4" 
+              <form onSubmit={handleSubmit} className="mt-4 flex gap-2">
+                <div className="flex-1 flex gap-2">
+                  <Select
+                    value={selectedPersona}
+                    onValueChange={setSelectedPersona}
+                  >
+                    <SelectTrigger className="w-10 h-10 p-0 border-none bg-transparent hover:bg-gray-100 rounded-full flex items-center justify-center">
+                      {selectedPersona ? (
+                        <div style={{ color: personaConfig[selectedPersona].color }}>
+                          {personaConfig[selectedPersona].icon}
+                        </div>
+                      ) : (
+                        <Plus className="h-4 w-4 text-gray-400" />
+                      )}
+                    </SelectTrigger>
+                    <SelectContent align="start" className="w-[200px]">
+                      {Object.entries(personaConfig).map(([key, config]) => (
+                        <SelectItem 
+                          key={key} 
+                          value={key}
+                          className="flex items-center gap-2"
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <div className="flex items-center gap-2">
+                              <div style={{ color: config.color }}>
+                                {config.icon}
+                              </div>
+                              <span>{config.shortName}</span>
+                            </div>
+                            {selectedPersona === key && (
+                              <Check className="h-4 w-4" />
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Type your message..."
+                    disabled={isLoading}
+                    className="flex-1"
                   />
-                </svg>
-              )}
-            </button>
-          </form>
-        </div>
-      </div>
+                </div>
+                <Button 
+                  type="submit" 
+                  disabled={isLoading}
+                  className="bg-[#FE3301] text-white hover:bg-[#FE3301]/90"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </form>
+            </div>
+          </CardContent>
+        </Card>
+      </main>
 
-      {/* Mobile Sidebar Overlay */}
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
-          onClick={() => setIsSidebarOpen(false)}
+      {showDetailedFeedback && (
+        <DetailedFeedback
+          messageId={showDetailedFeedback}
+          messageContent={messages.find(m => m.id === showDetailedFeedback)?.content || ''}
+          onClose={() => setShowDetailedFeedback(null)}
         />
       )}
+
+      <style jsx global>{`
+        @keyframes bounce {
+          0%, 100% {
+            transform: translateY(0);
+          }
+          50% {
+            transform: translateY(-10px);
+          }
+        }
+
+        .animate-bounce {
+          animation: bounce 0.6s infinite;
+        }
+
+        .backdrop-blur-sm {
+          backdrop-filter: blur(8px);
+        }
+
+        .prose a {
+          color: #FE3301;
+          text-decoration: none;
+        }
+
+        .prose a:hover {
+          text-decoration: underline;
+        }
+
+        .scrollbar-thin::-webkit-scrollbar {
+          width: 6px;
+        }
+
+        .scrollbar-thumb-gray-300::-webkit-scrollbar-thumb {
+          background-color: #D1D5DB;
+          border-radius: 3px;
+        }
+
+        .scrollbar-track-transparent::-webkit-scrollbar-track {
+          background-color: transparent;
+        }
+
+        .memory-indicator {
+          position: absolute;
+          top: -8px;
+          right: -8px;
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          background-color: #FE3301;
+          border: 2px solid white;
+          animation: pulse 2s infinite;
+        }
+
+        .similar-questions {
+          position: absolute;
+          top: 100%;
+          left: 0;
+          right: 0;
+          background: white;
+          border: 1px solid #FE330115;
+          border-radius: 8px;
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          z-index: 10;
+          max-height: 200px;
+          overflow-y: auto;
+        }
+
+        .similar-question-item {
+          padding: 8px 12px;
+          cursor: pointer;
+          transition: background-color 0.2s;
+        }
+
+        .similar-question-item:hover {
+          background-color: #FFF5F2;
+        }
+
+        @media (max-width: 640px) {
+          .max-w-[80%] {
+            max-width: 85%;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .animate-bounce,
+          .memory-indicator {
+            animation: none;
+          }
+        }
+
+        @media (forced-colors: active) {
+          .memory-indicator {
+            border: 2px solid CanvasText;
+            background-color: Highlight;
+          }
+          
+          .similar-question-item:hover {
+            background-color: Highlight;
+            color: HighlightText;
+          }
+        }
+      `}</style>
     </div>
   );
 }
