@@ -577,9 +577,28 @@ export default function ChatPage() {
     setLoading(true);
     setLoadingMessageId(messageId); // Set loading for this specific message
 
+    const chatHistory = messages.map(msg => ({
+      role: msg.role,
+      content: msg.content
+    }));
+    
     try {
-      const aiResponse = await sendMessageToAPI(inputValue, false);
-      setMessages(prev => [...prev, { ...aiResponse, isExpanded: false }]);
+      const aiResponse = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: inputValue,
+          chat_history: chatHistory,
+          is_expanded: false
+        })
+      });
+
+      if (!aiResponse.ok) {
+        throw new Error('Failed to get response');
+      }
+
+      const data = await aiResponse.json();
+      setMessages(prev => [...prev, { ...data, isExpanded: false }]);
     } catch (err) {
       console.error('Chat Error:', err);
       setError('Failed to get response. Please try again.');
