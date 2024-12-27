@@ -168,76 +168,48 @@ const ExpandButton = ({
 // MarkdownChat component for rendering markdown content with consistent styling
 const MarkdownChat = ({ content }: { content: string }) => {
   return (
-    <div className="prose prose-slate max-w-none overflow-hidden">
+    <div className="prose prose-slate max-w-none w-full">
       <style jsx global>{`
         /* Base Typography */
         .prose {
-          @apply text-base leading-relaxed overflow-hidden;
+          @apply text-base leading-relaxed w-full;
         }
 
         /* List Styles */
         .prose ul {
-          @apply list-none pl-0;
+          @apply list-none pl-0 w-full;
           margin-top: 0.75rem;
           margin-bottom: 0.75rem;
         }
         
         .prose ul > li {
-          @apply relative;
-          padding-left: 3rem;
+          @apply relative flex items-start;
+          padding-left: 1.5rem;
           margin-bottom: 1.25rem;
         }
         
         .prose ul > li:before {
-          content: "•  ";
+          content: "•";
           @apply absolute text-gray-600;
-          left: 1.5rem;
-          top: -1px;
+          left: 0;
+          margin-right: 0.5rem;
           font-size: 1.25rem;
-          white-space: pre;
+          line-height: 1.5rem;
         }
 
-        /* List Item Title Styles */
+        /* Title and content alignment */
         .prose li strong {
-          @apply text-gray-800 font-semibold whitespace-nowrap inline-block mr-1;
+          @apply text-gray-800 font-semibold inline-flex items-center mr-1;
         }
         
-        /* List Item Content */
         .prose li p {
-          @apply inline-block text-gray-700 mt-2;
-          margin-left: 0;
+          @apply text-gray-700 mt-0 ml-0;
+          display: inline;
         }
 
-        /* Ensure titles and colons stay together */
-        .prose li strong + span {
-          @apply whitespace-nowrap mr-1;
-        }
-
-        /* Content wrapping */
+        /* Ensure proper wrapping */
         .prose li > div {
-          @apply block;
-        }
-
-        /* Additional spacing refinements */
-        .prose li + li {
-          @apply mt-4;
-        }
-
-        /* Table styles */
-        .prose table {
-          @apply w-full max-w-full overflow-x-auto block;
-        }
-
-        /* Code block styles */
-        .prose pre {
-          @apply overflow-x-auto max-w-full;
-          white-space: pre-wrap;
-          word-wrap: break-word;
-        }
-
-        /* Image styles */
-        .prose img {
-          @apply max-w-full h-auto;
+          @apply flex-1;
         }
       `}</style>
 
@@ -265,12 +237,12 @@ const ChatMessage = ({
   handleDownload: (url: string) => Promise<void>;
 }) => {
   return (
-    <div className="mb-2">
+    <div className="mb-2 w-full">
       <div className={`${
         message.role === 'assistant' 
           ? 'bg-white shadow-sm' 
           : 'bg-[#F5F7FF] shadow-md'
-      } py-4 sm:py-5 px-5 sm:px-6 rounded-lg mx-4`}>
+      } py-4 sm:py-5 px-4 sm:px-6 rounded-lg mx-2 sm:mx-4 w-full`}>
         <div className="text-sm font-medium text-gray-600 mb-2">
           {message.role === 'assistant' ? 'AI Assistant' : 'You'}
         </div>
@@ -760,7 +732,7 @@ export default function ChatPage() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col w-full lg:w-auto overflow-hidden">
+      <div className="flex-1 flex flex-col w-full overflow-hidden">
         {/* Header */}
         <div className="bg-white flex-none border-b shadow-sm">
           <div className="p-4">
@@ -803,9 +775,9 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Messages Area - Updated container */}
-        <div className="flex-1 bg-gray-50 overflow-y-auto">
-          <div className="container mx-auto max-w-5xl px-4 py-4">
+        {/* Messages Area */}
+        <div className="flex-1 bg-gray-50 overflow-y-auto w-full">
+          <div className="w-full px-4 py-4">
             {/* Welcome Screen */}
             {messages.length === 0 && (
               <div className="flex flex-col items-center gap-6 py-6">
@@ -872,7 +844,7 @@ export default function ChatPage() {
             )}
             
             {/* Chat Messages with improved spacing */}
-            <div className="space-y-6">
+            <div className="space-y-6 w-full">
               {messages.map((message, index) => (
                 <React.Fragment key={index}>
                   <ChatMessage
