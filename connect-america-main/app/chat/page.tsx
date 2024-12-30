@@ -186,6 +186,7 @@ const MarkdownChat = ({ content }: { content: string }) => {
           @apply relative flex items-start;
           padding-left: 1.5rem;
           margin-bottom: 1.25rem;
+          white-space: normal; /* Ensure proper wrapping */
         }
         
         .prose ul > li:before {
@@ -205,11 +206,22 @@ const MarkdownChat = ({ content }: { content: string }) => {
         .prose li p {
           @apply text-gray-700 mt-0 ml-0;
           display: inline;
+          white-space: normal; /* Ensure proper wrapping */
         }
 
-        /* Ensure proper wrapping */
+        /* Ensure proper wrapping and prevent orphaned punctuation */
         .prose li > div {
           @apply flex-1;
+          white-space: normal;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+          hyphens: auto;
+        }
+
+        /* Prevent orphaned punctuation */
+        .prose p, .prose li {
+          text-wrap: pretty;
+          hanging-punctuation: last;
         }
       `}</style>
 
@@ -313,7 +325,7 @@ const References = ({
           <div key={index} className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 rounded-lg border border-gray-200 hover:border-blue-500 transition-colors bg-white shadow-sm hover:shadow-md">
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <span className="text-blue-700 font-semibold">#{index + 1}</span>
+                <span className="text-blue-700 font-semibo ld">#{index + 1}</span>
                 <h3 className="text-gray-900 text-lg font-medium">
                   {getDocumentTitle(url)}
                 </h3>
@@ -339,10 +351,10 @@ const References = ({
                 </svg>
                 View
               </a>
-              <button 
+              <button   
                 onClick={() => handleDownload(url)}
                 className="flex items-center gap-2 px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 transition-colors flex-1 sm:flex-initial justify-center"
-              >
+              > 
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
                         d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -448,13 +460,10 @@ export default function ChatPage() {
     }
   };
 
+  // Simple scrollToBottom function
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
 
   // Function to format document titles
   const getDocumentTitle = (url: string) => {
@@ -496,7 +505,7 @@ export default function ChatPage() {
       if (downloadUrl) window.URL.revokeObjectURL(downloadUrl);
     }
   };
-
+ 
   // Send messages to the API
   const sendMessageToAPI = async (message: string, isExpanded: boolean = false) => {
     try {
@@ -512,7 +521,7 @@ export default function ChatPage() {
         }),
       });
 
-      if (!response.ok) {
+      if (!response.ok) { 
         throw new Error('Failed to send message');
       }
 
@@ -527,11 +536,107 @@ export default function ChatPage() {
     }
   };
 
-  // Handle expanding conversation
+  // Update handleSubmit to properly handle scrolling for current question
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputValue.trim() || loading) return;
+
+    const messageId = messages.length;
+    const userMessage: Message = { role: 'user', content: inputValue };
+    
+    // Add the user message
+    setMessages(prev => [...prev, userMessage]);
+    
+    // Ensure scroll to the new message
+    setTimeout(() => {
+      scrollToBottom();
+    }, 100);
+    
+    setInputValue('');
+    setError(null);
+    setLoading(true);
+    setLoadingMessageId(messageId);
+
+    try {
+      const aiResponse = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: inputValue,
+          chat_history: messages.map(msg => ({
+            role: msg.role,
+            content: msg.content
+          })),
+          is_expanded: false
+        })
+      });
+
+      if (!aiResponse.ok) {
+        throw new Error('Failed to get response');
+      }
+
+      const data = await aiResponse.json();
+      
+      // Add AI response and scroll only if it's for the current query
+      if (messageId === messages.length - 1) {
+        setMessages(prev => [...prev, { ...data, isExpanded: false }]);
+        // Ensure scroll after AI response
+        setTimeout(() => {
+          scrollToBottom();
+        }, 100);
+      } else {
+        setMessages(prev => [...prev, { ...data, isExpanded: false }]);
+      }
+    } catch (err) {
+      console.error('Chat Error:', err);
+      setError('Failed to get response. Please try again.');
+    } finally {
+      setLoading(false);
+      setLoadingMessageId(null);
+    }
+  };
+
+  // Update handleQuestionClick to include proper scrolling
+  const handleQuestionClick = async (question: string) => {
+    if (loading) return;
+    
+    const messageId = messages.length;
+    const userMessage: Message = { role: 'user', content: question };
+    setMessages(prev => [...prev, userMessage]);
+    
+    // Ensure scroll to the new question
+    setTimeout(() => {
+      scrollToBottom();
+    }, 100);
+    
+    setError(null);
+    setLoading(true);
+    setLoadingMessageId(messageId);
+
+    try {
+      const aiResponse = await sendMessageToAPI(question, false);
+      if (messageId === messages.length - 1) {
+        setMessages(prev => [...prev, { ...aiResponse, isExpanded: false }]);
+        // Ensure scroll after AI response
+        setTimeout(() => {
+          scrollToBottom();
+        }, 100);
+      } else {
+        setMessages(prev => [...prev, { ...aiResponse, isExpanded: false }]);
+      }
+    } catch (err) {
+      console.error('FAQ Question Error:', err);
+      setError('Failed to get response. Please try again.');
+    } finally {
+      setLoading(false);
+      setLoadingMessageId(null);
+    }
+  };
+
+  // Keep handleExpandConversation without auto-scroll
   const handleExpandConversation = async (message: Message, index: number) => {
     if (loading) return;
     
-    // Mark this specific message as expanding
     setMessages(prev => {
       const newMessages = [...prev];
       newMessages[index] = { ...newMessages[index], isExpanding: true };
@@ -545,14 +650,13 @@ export default function ChatPage() {
         newMessages[index] = { 
           ...expandedResponse, 
           isExpanded: true,
-          isExpanding: false // Reset expanding state
+          isExpanding: false
         };
         return newMessages;
       });
     } catch (err) {
       console.error('Expansion Error:', err);
       setError('Failed to expand conversation. Please try again.');
-      // Reset expanding state on error
       setMessages(prev => {
         const newMessages = [...prev];
         newMessages[index] = { ...newMessages[index], isExpanding: false };
@@ -563,74 +667,6 @@ export default function ChatPage() {
 
   // Add loadingMessageId to track which message is loading
   const [loadingMessageId, setLoadingMessageId] = useState<number | null>(null);
-
-  // Update handleSubmit to use message-specific loading
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputValue.trim() || loading) return;
-
-    const messageId = messages.length; // Use message index as ID
-    const userMessage: Message = { role: 'user', content: inputValue };
-    setMessages(prev => [...prev, userMessage]);
-    setInputValue('');
-    setError(null);
-    setLoading(true);
-    setLoadingMessageId(messageId); // Set loading for this specific message
-
-    const chatHistory = messages.map(msg => ({
-      role: msg.role,
-      content: msg.content
-    }));
-    
-    try {
-      const aiResponse = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: inputValue,
-          chat_history: chatHistory,
-          is_expanded: false
-        })
-      });
-
-      if (!aiResponse.ok) {
-        throw new Error('Failed to get response');
-      }
-
-      const data = await aiResponse.json();
-      setMessages(prev => [...prev, { ...data, isExpanded: false }]);
-    } catch (err) {
-      console.error('Chat Error:', err);
-      setError('Failed to get response. Please try again.');
-    } finally {
-      setLoading(false);
-      setLoadingMessageId(null); // Clear loading state
-    }
-  };
-
-  // Update handleQuestionClick similarly
-  const handleQuestionClick = async (question: string) => {
-    if (loading) return;
-    
-    const messageId = messages.length;
-    const userMessage: Message = { role: 'user', content: question };
-    setMessages(prev => [...prev, userMessage]);
-    
-    setError(null);
-    setLoading(true);
-    setLoadingMessageId(messageId);
-
-    try {
-      const aiResponse = await sendMessageToAPI(question, false);
-      setMessages(prev => [...prev, { ...aiResponse, isExpanded: false }]);
-    } catch (err) {
-      console.error('FAQ Question Error:', err);
-      setError('Failed to get response. Please try again.');
-    } finally {
-      setLoading(false);
-      setLoadingMessageId(null);
-    }
-  };
 
   // Handle textarea height adjustments
   const updateTextareaHeight = (element: HTMLTextAreaElement) => {
