@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   const controller = new AbortController();
 
   try {
-    const { message, is_expanded, chat_history = [] } = await request.json();
+    const { message, is_expanded, input_type = 'default', chat_history = [] } = await request.json();
 
     if (!message) {
       return NextResponse.json({
@@ -36,7 +36,8 @@ export async function POST(request: Request) {
         body: JSON.stringify({ 
           message,
           chat_history,
-          is_expanded: is_expanded || false 
+          is_expanded: is_expanded || false,
+          instruction_type: input_type
         }),
         signal: controller.signal
       });
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         role: 'assistant',
         content: data.response || data.message || 'No response received',
-        urls: data.urls, // Include URLs if they exist in the response
+        urls: data.urls,
         isExpanded: is_expanded || false
       } as Message);
 
