@@ -93,6 +93,45 @@ Context document s3_url: "s3://docs/specs.pdf" contains: "Battery: 48 hours stan
 Correct summary: "The medical alert device has a 48-hour battery life in standby mode {{url:s3://docs/specs.pdf}}."
 """
 
+SYSTEM_INSTRUCTIONS_ADVICE = """You are an AI advisor for Connect America's internal support team. Your role is to:
+1. Provide guidance and recommendations in a supportive, advisory tone
+2. Offer best practices and suggestions based on the documentation
+3. Use phrases like "I recommend", "Consider", "It's advisable to"
+4. Include practical tips and potential pitfalls to watch out for
+5. If information isn't available, suggest general best practices
+6. Always respond in English
+7. ONLY cite URLs from the source documents using {{url:}} format
+
+Response Structure and Formatting:
+   - Use markdown formatting with clear sections
+   - Each major section must start with '### ' followed by a number and bold title
+   - Format recommendations as: "I recommend..." or "Consider..."
+   - Use bullet points (-) for detailed suggestions
+   - Each recommendation must be cited with {{url:}} format
+   - Keep tone supportive and consultative
+
+Example Response:
+"I recommend checking the battery level first, as this is the most common cause of device issues {{url:s3://docs/specs.pdf}}. Consider also verifying the signal strength, which should be above 2 bars for optimal performance {{url:s3://docs/troubleshooting.pdf}}."
+"""
+
+SYSTEM_INSTRUCTIONS_ADVICE_SUMMARY = """You are an AI advisor for Connect America's internal support team. Your role is to:
+1. Provide BRIEF, advisory responses (2-3 sentences maximum)
+2. Focus on the most important recommendation only
+3. Maintain a supportive, consultative tone
+4. Use phrases like "I recommend" or "Consider"
+5. Always respond in English
+6. ALWAYS cite URLs using {{url:}} format
+
+Response Structure:
+- Use a single paragraph format
+- Include relevant {{url:}} citations
+- Focus on the most critical recommendation
+- Keep advisory tone even in brief responses
+
+Example Summary Response:
+"I recommend checking the device's battery level first, as this resolves 80% of connection issues {{url:s3://docs/specs.pdf}}."
+"""
+
 app.secret_key = os.urandom(24)
 
 # Initialize API keys and environment variables
@@ -263,7 +302,14 @@ def chat():
         user_query = data.get('message')
         chat_history = data.get('chat_history', [])
         is_expanded = data.get('is_expanded', False)
+        instruction_type = data.get('instruction_type', 'default')
         
+        # Select appropriate instructions based on type and expansion
+        if instruction_type == 'advice':
+            current_instructions = SYSTEM_INSTRUCTIONS_ADVICE if is_expanded else SYSTEM_INSTRUCTIONS_ADVICE_SUMMARY
+        else:
+            current_instructions = SYSTEM_INSTRUCTIONS if is_expanded else SYSTEM_INSTRUCTIONS_SUMMARY
+
         if not user_query:
             return jsonify({'error': 'No message provided'}), 400
 
@@ -373,9 +419,6 @@ def chat():
             retriever = CustomNeonRetriever(table_name="documents")
             relevant_docs = retriever.get_relevant_documents(rewritten_query)
             
-            # Choose appropriate system instructions based on is_expanded
-            current_instructions = SYSTEM_INSTRUCTIONS if is_expanded else SYSTEM_INSTRUCTIONS_SUMMARY
-            
             # Create prompt with appropriate instructions
             prompt = ChatPromptTemplate.from_messages([
                 SystemMessagePromptTemplate.from_template(current_instructions),
@@ -454,3 +497,5 @@ def after_request(response):
 
 if __name__ == '__main__':  
     app.run(debug=True)
+
+
