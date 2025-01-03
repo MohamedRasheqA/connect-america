@@ -324,7 +324,7 @@ def chat():
                     logging.warning(f"Unexpected chat history format: {msg}")
             
             # Detailed relevance check
-            relevance_check_prompt = f"""
+           relevance_check_prompt = f"""
             Given the following question or message and the chat history, determine if it is:
             1. A greeting or send-off (like "hello", "thank you", "goodbye", or casual messages)
             2. Related to Connect America's core services:
@@ -333,6 +333,7 @@ def chat():
                 - Care Management Services
                 - Customer Service Operations
                 - Medication Management Solutions
+                - Social Determinants of Health (SDOH)
                 - asking about the company
             3. Related to:
                 - Device setup, troubleshooting, or maintenance
@@ -340,11 +341,13 @@ def chat():
                 - Care coordination processes
                 - Customer support protocols
                 - Medication tracking systems
+                - Social and environmental factors affecting health
+                - Community resources and support services
+                - Healthcare outcome factors
             4. A follow-up question to the previous conversation about these topics
             5. Related to violence, harmful activities, or other inappropriate content
             6. Completely unrelated to Connect America's healthcare services
-
-            If it falls under category 1, respond with 'GREETING'. 
+            If it falls under category 1, respond with 'GREETING'.
             If it falls under categories 2, 3, or 4 respond with 'RELEVANT'.
             If it falls under category 5, respond with 'INAPPROPRIATE'.
             If it falls under category 6, respond with 'NOT RELEVANT'.
