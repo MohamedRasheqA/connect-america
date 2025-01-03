@@ -324,7 +324,7 @@ def chat():
                     logging.warning(f"Unexpected chat history format: {msg}")
             
             # Detailed relevance check
-           relevance_check_prompt = f"""
+          relevance_check_prompt = f"""
             Given the following question or message and the chat history, determine if it is:
             1. A greeting or send-off (like "hello", "thank you", "goodbye", or casual messages)
             2. Related to Connect America's core services:
