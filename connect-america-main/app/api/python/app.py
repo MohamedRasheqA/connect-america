@@ -70,7 +70,7 @@ Response Structure and Formatting:
 Example Response:
 Question: "What is the battery capacity of the smartwatch?"
 Context document s3_url: "s3://docs/specs.pdf" contains: "Battery: 600mAh"
-Correct response: "The smartwatch has a 600mAh battery capacity {{url:s3://docs/specs.pdf}}"
+Correct response: "The smartwatch has a 600mAh battery capacity {{url:s3://docs/specs.pdf}}
 """
 
 SYSTEM_INSTRUCTIONS_SUMMARY = """You are an AI assistant for Connect America's internal support team. Your role is to:
@@ -90,7 +90,8 @@ Response Structure:
 Example Summary Response:
 Question: "What is the battery life of the medical alert device?"
 Context document s3_url: "s3://docs/specs.pdf" contains: "Battery: 48 hours standby"
-Correct summary: "The medical alert device has a 48-hour battery life in standby mode {{url:s3://docs/specs.pdf}}."
+Correct summary: "The medical alert device has a 48-hour battery life in standby mode {{url:s3://docs/specs.pdf}}.
+
 """
 
 SYSTEM_INSTRUCTIONS_ADVICE = """You are an AI advisor for Connect America's internal support team. Your role is to:
@@ -109,9 +110,9 @@ Response Structure and Formatting:
    - Use bullet points (-) for detailed suggestions
    - Each recommendation must be cited with {{url:}} format
    - Keep tone supportive and consultative
-
 Example Response:
-"I recommend checking the battery level first, as this is the most common cause of device issues {{url:s3://docs/specs.pdf}}. Consider also verifying the signal strength, which should be above 2 bars for optimal performance {{url:s3://docs/troubleshooting.pdf}}."
+"I recommend checking the battery level first, as this is the most common cause of device issues {{url:s3://docs/specs.pdf}}. Consider also verifying the signal strength, which should be above 2 bars for optimal performance {{url:s3://docs/troubleshooting.pdf}}.
+
 """
 
 SYSTEM_INSTRUCTIONS_ADVICE_SUMMARY = """You are an AI advisor for Connect America's internal support team. Your role is to:
@@ -129,7 +130,8 @@ Response Structure:
 - Keep advisory tone even in brief responses
 
 Example Summary Response:
-"I recommend checking the device's battery level first, as this resolves 80% of connection issues {{url:s3://docs/specs.pdf}}."
+"I recommend checking the device's battery level first, as this resolves 80% of connection issues {{url:s3://docs/specs.pdf}}.
+
 """
 
 app.secret_key = os.urandom(24)
@@ -324,7 +326,7 @@ def chat():
                     logging.warning(f"Unexpected chat history format: {msg}")
             
             # Detailed relevance check
-          relevance_check_prompt = f"""
+            relevance_check_prompt = f"""
             Given the following question or message and the chat history, determine if it is:
             1. A greeting or send-off (like "hello", "thank you", "goodbye", or casual messages)
             2. Related to Connect America's core services:
@@ -347,7 +349,8 @@ def chat():
             4. A follow-up question to the previous conversation about these topics
             5. Related to violence, harmful activities, or other inappropriate content
             6. Completely unrelated to Connect America's healthcare services
-            If it falls under category 1, respond with 'GREETING'.
+
+            If it falls under category 1, respond with 'GREETING'. 
             If it falls under categories 2, 3, or 4 respond with 'RELEVANT'.
             If it falls under category 5, respond with 'INAPPROPRIATE'.
             If it falls under category 6, respond with 'NOT RELEVANT'.
