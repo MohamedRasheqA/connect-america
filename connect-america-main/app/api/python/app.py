@@ -324,6 +324,10 @@ def chat():
                 - Customer Service Operations
                 - Medication Management Solutions
                 - Social Determinants of Health (SDOH)
+                - Prevent fall
+                - Esper AI Virtual Assistant
+                - CDC Avoid Falls
+                - Chair Rise Expertise
                 - asking about the company
             3. Related to:
                 - Device setup, troubleshooting, or maintenance
