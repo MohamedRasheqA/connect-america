@@ -58,7 +58,7 @@ export async function POST(request: Request) {
         urls: data.urls,
         isExpanded: is_expanded || false
       } as Message);
-
+ 
     } catch (fetchError) {
       if (fetchError instanceof Error && fetchError.name === 'AbortError') {
         return NextResponse.json({
@@ -79,3 +79,7 @@ export async function POST(request: Request) {
     controller.abort();
   }
 }
+
+
+
+
