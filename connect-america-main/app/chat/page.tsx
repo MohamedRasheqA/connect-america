@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { FileText, Plus, ChevronDown, Menu } from 'lucide-react';
 import React from 'react';
+import { toast } from 'react-hot-toast';
 
 // Define the structure for chat messages
 interface Message {
@@ -16,6 +17,7 @@ interface Message {
 // Define the structure for FAQ questions
 interface Question {
   question_text: string;
+  answer?: string;
 }
 
 // Define the structure for input options in the dropdown
@@ -425,6 +427,7 @@ export default function ChatPage() {
   // State for FAQ questions
   const [questions, setQuestions] = useState<Question[]>([]);
   const [questionsLoading, setQuestionsLoading] = useState(true);
+  const [questionError, setQuestionError] = useState<string | null>(null);
 
   // Available input options for the dropdown
   const inputOptions: InputOption[] = [
@@ -478,31 +481,45 @@ export default function ChatPage() {
 
   // Handle document downloads
   const handleDownload = async (url: string) => {
-    let downloadUrl: string | undefined;
     try {
+      // Show loading state if needed
+      setIsDownloading(true);
+
       const response = await fetch('/api/download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
       });
 
-      if (!response.ok) throw new Error('Download failed');
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.statusText}`);
+      }
 
       const blob = await response.blob();
-      downloadUrl = window.URL.createObjectURL(blob);
+      const downloadUrl = window.URL.createObjectURL(blob);
       const filename = url.split('/').pop() || 'document';
 
+      // Create and trigger download
       const link = document.createElement('a');
       link.href = downloadUrl;
       link.download = filename;
       document.body.appendChild(link);
       link.click();
+      
+      // Cleanup
       document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      
+      // Show success message if needed
+      toast.success('Download completed successfully');
+      
     } catch (error) {
       console.error('Download failed:', error);
-      throw new Error('Failed to download the file. Please try again.');
+      // Show error message to user
+      toast.error('Failed to download the file. Please try again.');
     } finally {
-      if (downloadUrl) window.URL.revokeObjectURL(downloadUrl);
+      // Reset loading state if needed
+      setIsDownloading(false);
     }
   };
  
@@ -693,22 +710,26 @@ export default function ChatPage() {
   useEffect(() => {
     const fetchQuestions = async () => {
       try {
+        setQuestionsLoading(true);
+        setQuestionError(null);
+        
         const response = await fetch('/api/questions');
+        
         if (!response.ok) {
-          const errorData = await response.json().catch(() => null);
-          throw new Error(
-
-          );
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
+        
         const data = await response.json();
-        if (!Array.isArray(data)) {
-          throw new Error('Invalid response format: expected an array of questions');
+        
+        if (!Array.isArray(data.questions)) {
+          throw new Error('Invalid response format');
         }
-        setQuestions(data);
-      } catch (err) {
-        console.error('Error fetching questions:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load suggested questions');
-        setQuestions([]);
+        
+        setQuestions(data.questions);
+      } catch (error) {
+        console.error('Error fetching questions:', error);
+        setQuestionError('Failed to load suggested questions');
+        setQuestions([]); // Reset questions on error
       } finally {
         setQuestionsLoading(false);
       }
@@ -722,8 +743,40 @@ export default function ChatPage() {
     setMessages([]);
     ChatStorage.clearCurrentSession();
   };
-
+ 
   const [recentSessions, setRecentSessions] = useState<ChatSession[]>([]);
+
+  // Add this state for FAQ questions
+  const [faqQuestions, setFaqQuestions] = useState<Array<{ question: string; answer: string }>>([]);
+  const [isLoadingQuestions, setIsLoadingQuestions] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Add this function to fetch FAQ questions
+  const loadFaqQuestions = async () => {
+    try {
+      setIsLoadingQuestions(true);
+      setLoadError(null);
+      const response = await fetch('/api/questions');
+      if (!response.ok) {
+        throw new Error('Failed to load FAQ questions');
+      }
+      const data = await response.json();
+      setFaqQuestions(data.questions);
+    } catch (error) {
+      console.error('Error loading FAQ questions:', error);
+      setLoadError('Failed to load suggested questions');
+    } finally {
+      setIsLoadingQuestions(false);
+    }
+  };
+
+  // Add this useEffect to load questions when component mounts
+  useEffect(() => {
+    loadFaqQuestions();
+  }, []);
+
+  // Add with other state declarations
+  const [isDownloading, setIsDownloading] = useState(false);
 
   return (
     <div className="flex fixed inset-0 overflow-hidden">
@@ -800,7 +853,7 @@ export default function ChatPage() {
                   <Menu size={24} className="text-gray-700" />
                 </button>
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-800">Chat Assistant</h2>
+                  <h2 className="text-lg font-semibold text-gray-800">Chat A  ssistant</h2>
                   <p className="text-sm text-gray-500">Ask me anything about Connect America</p>
                 </div>
               </div>
@@ -842,22 +895,33 @@ export default function ChatPage() {
                 </div>
                 
                 <div className="w-full max-w-4xl mx-auto">
-                  <h2 className="text-lg font-semibold text-gray-700 mb-3 px-4">Frequently Asked Questions</h2>
+                  <h2 className="text-lg font-semibold text-gray-700 mb-3 px-4">
+                    Frequently Asked Questions
+                  </h2>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 px-4 mb-6">
                     {questionsLoading ? (
-                      // Loading skeleton for questions
+                      // Loading skeleton
                       Array(3).fill(null).map((_, index) => (
                         <div
                           key={index}
-                          className="bg-white p-4 rounded-lg shadow-sm
-                            border border-gray-200 animate-pulse h-24"
+                          className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 animate-pulse h-24"
                         >
                           <div className="h-4 bg-gray-200 rounded w-3/4 mb-3"></div>
                           <div className="h-4 bg-gray-200 rounded w-1/2"></div>
                         </div>
                       ))
+                    ) : questionError ? (
+                      // Error state
+                      <div className="col-span-3 text-center text-red-600 py-4">
+                        {questionError}
+                      </div>
+                    ) : questions.length === 0 ? (
+                      // Empty state
+                      <div className="col-span-3 text-center text-gray-500 py-4">
+                        No suggested questions available
+                      </div>
                     ) : (
-                      // Render actual questions when loaded
+                      // Render questions
                       questions.map((q, index) => (
                         <button
                           key={index}
