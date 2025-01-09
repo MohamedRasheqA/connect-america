@@ -3,7 +3,7 @@ import { Pool } from 'pg';
 
 // Initialize the connection pool
 const pool = new Pool({
-  connectionString: 'postgresql://neondb_owner:QiDtGlAW40xj@ep-polished-bird-a5hm3koc.us-east-2.aws.neon.tech/Data?sslmode=require'
+  connectionString: "postgresql://neondb_owner:3Bj7PeDgvQdU@ep-morning-dream-a51muxnt.us-east-2.aws.neon.tech/Data?sslmode=require"
 });
 
 export async function GET() {
